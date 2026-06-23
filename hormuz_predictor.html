@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oil Depletion Tracker & Simulator 2026</title>
+    <!-- Tailwind CSS per uno stile moderno e responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js per la visualizzazione dei dati in tempo reale -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Google Fonts: Inter per un look pulito e leggibile -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom scrollbar per un look premium */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-full flex flex-col justify-between">
+
+    <!-- Header Principale -->
+    <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-600/15 rounded-lg border border-blue-500/30 text-blue-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                        Hormuz Crisis Simulator <span class="text-xs font-normal px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-300">v2.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Modello interattivo di svuotamento delle riserve petrolifere globali</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs bg-slate-800/40 border border-slate-700/50 px-3 py-1.5 rounded-lg text-slate-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Scenario Giugno - Dicembre 2026
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenitore Principale -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            
+            <!-- Colonna Sinistra: Controlli e Form -->
+            <section class="lg:col-span-4 space-y-6">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm space-y-6">
+                    <div class="border-b border-slate-800 pb-4">
+                        <h2 class="text-lg font-semibold text-white">Parametri di Simulazione</h2>
+                        <p class="text-xs text-slate-400">Modifica i flussi e le riserve di partenza per testare la tenuta del sistema.</p>
+                    </div>
+
+                    <!-- Input Riserve di Partenza -->
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <label for="initialInventory" class="text-sm font-medium text-slate-300">Riserve Iniziali (GigaBarili)</label>
+                            <span class="text-xs text-slate-400 font-mono">Giugno 15, 2026</span>
+                        </div>
+                        <div class="relative rounded-lg shadow-sm">
+                            <input type="number" id="initialInventory" step="0.01" min="6.0" max="8.0" value="7.38" 
+                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold transition-all">
+                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <span class="text-slate-500 text-sm font-semibold">Bbls</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Input Deficit Giornaliero (Sincronizzato Slider + Number) -->
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <label for="deficitNumber" class="text-sm font-medium text-slate-300">Deficit Giornaliero (Milioni b/g)</label>
+                            <input type="number" id="deficitNumber" step="0.1" min="-8.0" max="2.0" value="-3.8"
+                                class="w-20 bg-slate-950 border border-slate-800 rounded-lg py-1 px-2 text-center text-white font-mono focus:outline-none focus:ring-1 focus:ring-blue-500 font-bold">
+                        </div>
+                        
+                        <!-- Range Slider -->
+                        <div class="relative pt-1">
+                            <input type="range" id="deficitSlider" min="-8.0" max="2.0" step="0.1" value="-3.8"
+                                class="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                            <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1 px-1">
+                                <span>-8.0 (Estremo)</span>
+                                <span>-3.0</span>
+                                <span>0.0 (Pareggio)</span>
+                                <span>+2.0 (Accumulo)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Badge Dinamico dello Scenario -->
+                    <div id="scenarioBadgeContainer" class="p-4 rounded-xl border transition-all duration-300 flex flex-col gap-1 items-center justify-center text-center">
+                        <span class="text-xs uppercase tracking-wider font-semibold opacity-70">Classificazione Scenario</span>
+                        <span id="scenarioName" class="text-lg font-extrabold tracking-tight">-</span>
+                    </div>
+
+                    <!-- Bottone di Reset -->
+                    <button id="resetBtn" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-650 rounded-xl font-medium text-slate-200 transition-all text-sm flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19" />
+                        </svg>
+                        Ripristina Dati IEA (Giugno)
+                    </button>
+                </div>
+
+                <!-- Metric Cards: Date di Breach -->
+                <div class="grid grid-cols-1 gap-4">
+                    <!-- Alert Threshold Card -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <span class="text-xs font-semibold text-amber-500 uppercase tracking-wider">Superamento Allerta (7.0B)</span>
+                            <p id="alertDateText" class="text-2xl font-extrabold text-white tracking-tight">-</p>
+                            <p class="text-[10px] text-slate-500">Frenata iniziale del sistema di raffinazione</p>
+                        </div>
+                        <div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Critical Threshold Card -->
+                    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <span class="text-xs font-semibold text-rose-500 uppercase tracking-wider">Limite Critico Fisico (6.8B)</span>
+                            <p id="criticalDateText" class="text-2xl font-extrabold text-white tracking-tight">-</p>
+                            <p class="text-[10px] text-slate-500">Rischio svuotamento tubature e stop logistico</p>
+                        </div>
+                        <div class="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Colonna Destra: Grafico -->
+            <section class="lg:col-span-8 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl flex flex-col justify-between min-h-[550px]">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4 mb-6">
+                    <div>
+                        <h2 class="text-lg font-semibold text-white">Andamento delle Scorte Mondiali</h2>
+                        <p class="text-xs text-slate-400">Proiezione temporale dall'inizio della crisi fino al 31 Dicembre 2026</p>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-xs font-mono">
+                        <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-slate-300">Start: 15 Giu 2026</span>
+                        <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-slate-300">End: 31 Dic 2026</span>
+                    </div>
+                </div>
+
+                <!-- Contenitore del Canvas del Grafico -->
+                <div class="relative w-full flex-grow h-[350px] md:h-[400px]">
+                    <canvas id="oilChart"></canvas>
+                </div>
+
+                <!-- Legenda descrittiva delle linee fuori dal grafico -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-800/80 pt-6 mt-6 text-xs text-slate-400">
+                    <div class="flex items-start gap-2">
+                        <span class="w-3 h-3 bg-blue-500 rounded-full shrink-0 mt-0.5"></span>
+                        <div>
+                            <strong class="text-slate-200 block">Proiezione Riserve:</strong>
+                            Calcolate decurtando il deficit giornaliero impostato dalla riserva iniziale.
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="w-3 h-3 bg-amber-500 rounded-full shrink-0 mt-0.5"></span>
+                        <div>
+                            <strong class="text-slate-200 block">Soglia Alert (7.0B):</strong>
+                            Fase critica iniziale. Necessità immediata di politiche di austerity nazionale.
+                        </div>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="w-3 h-3 bg-rose-500 rounded-full shrink-0 mt-0.5"></span>
+                        <div>
+                            <strong class="text-slate-200 block">Limite Critico (6.8B):</strong>
+                            Limite operativo minimo. I flussi perdono continuità fisica.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Footer dell'applicazione -->
+    <footer class="border-t border-slate-800/60 bg-slate-950/80 py-6 text-center text-xs text-slate-500">
+        <div class="max-w-7xl mx-auto px-4">
+            <p>Ipotizzato sulla base dei dati storici d'importazione ed esportazione globali e dei trend IEA di Giugno 2026.</p>
+            <p class="mt-1">Sviluppato per monitoraggio di scenario e analisi macroeconomica.</p>
+        </div>
+    </footer>
+
+    <script>
+        // Data di inizio fissa: 15 Giugno 2026
+        const startDate = new Date(2026, 5, 15);
+        // Data di fine fissa: 31 Dicembre 2026
+        const endDate = new Date(2026, 11, 31);
+        
+        // Calcolo della differenza in giorni
+        const totalDays = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+
+        // Elementi del DOM
+        const initialInventoryInput = document.getElementById('initialInventory');
+        const deficitNumberInput = document.getElementById('deficitNumber');
+        const deficitSliderInput = document.getElementById('deficitSlider');
+        const scenarioBadgeContainer = document.getElementById('scenarioBadgeContainer');
+        const scenarioName = document.getElementById('scenarioName');
+        const alertDateText = document.getElementById('alertDateText');
+        const criticalDateText = document.getElementById('criticalDateText');
+        const resetBtn = document.getElementById('resetBtn');
+
+        let chart;
+
+        // Mappa e restituisce l'etichetta dello scenario in base al valore inserito
+        function getScenarioDetails(val) {
+            if (val > 0) {
+                return { 
+                    label: "Scenario di Ripresa", 
+                    class: "text-emerald-400 bg-emerald-950/30 border-emerald-500/40" 
+                };
+            }
+            if (val >= -2.9) {
+                return { 
+                    label: "Scenario Ottimistico", 
+                    class: "text-teal-400 bg-teal-950/30 border-teal-500/40" 
+                };
+            }
+            if (val > -3.8) {
+                return { 
+                    label: "Scenario Medio-Basso", 
+                    class: "text-green-400 bg-green-950/30 border-green-500/40" 
+                };
+            }
+            if (val === -3.8) {
+                return { 
+                    label: "Scenario Medio", 
+                    class: "text-blue-400 bg-blue-950/30 border-blue-500/40" 
+                };
+            }
+            if (val > -5.0) {
+                return { 
+                    label: "Scenario Medio-Alto", 
+                    class: "text-yellow-400 bg-yellow-950/30 border-yellow-500/40" 
+                };
+            }
+            if (val > -6.0) {
+                return { 
+                    label: "Scenario Pessimistico", 
+                    class: "text-orange-400 bg-orange-950/30 border-orange-500/40" 
+                };
+            }
+            return { 
+                label: "Scenario Doomsday", 
+                class: "text-rose-500 bg-rose-950/40 border-rose-500/50 animate-pulse" 
+            };
+        }
+
+        // Esegue il calcolo matematico della deplezione scorte giorno per giorno
+        function runSimulation() {
+            const startInventory = parseFloat(initialInventoryInput.value) || 7.38;
+            const deficitRate = parseFloat(deficitNumberInput.value) || -3.8;
+            
+            // Aggiorna lo stile del badge dello scenario
+            const scenario = getScenarioDetails(deficitRate);
+            scenarioBadgeContainer.className = `p-4 rounded-xl border transition-all duration-300 flex flex-col gap-1 items-center justify-center text-center ${scenario.class}`;
+            scenarioName.innerText = scenario.label;
+
+            const labels = [];
+            const inventoryData = [];
+            const alertLineData = [];
+            const criticalLineData = [];
+
+            let alertDate = null;
+            let criticalDate = null;
+
+            const options = { day: 'numeric', month: 'short', year: 'numeric' };
+
+            for (let i = 0; i <= totalDays; i++) {
+                // Calcolo data del giorno corrente
+                let currentDate = new Date(startDate.getTime());
+                currentDate.setDate(startDate.getDate() + i);
+                
+                // Formatta la data per il grafico
+                labels.push(currentDate.toLocaleDateString('it-IT', options));
+                
+                // Conversione deficit da Milioni b/g a GigaBarili cumulativi: (deficit / 1000) * i
+                let currentInventory = startInventory + (deficitRate * (i / 1000));
+                
+                // Non scendere mai sotto zero teorico
+                currentInventory = Math.max(0, currentInventory);
+                inventoryData.push(currentInventory);
+
+                // Dati costanti per le linee orizzontali di allarme
+                alertLineData.push(7.0);
+                criticalLineData.push(6.8);
+
+                // Trova la data esatta del superamento
+                if (currentInventory <= 7.0 && alertDate === null) {
+                    alertDate = currentDate;
+                }
+                if (currentInventory <= 6.8 && criticalDate === null) {
+                    criticalDate = currentDate;
+                }
+            }
+
+            // Aggiornamento scritte nel DOM
+            if (startInventory <= 7.0) {
+                alertDateText.innerText = "Già Superata";
+                alertDateText.className = "text-2xl font-extrabold text-amber-500 tracking-tight";
+            } else {
+                alertDateText.innerText = alertDate ? alertDate.toLocaleDateString('it-IT', options) : "Nessun Breach nel 2026";
+                alertDateText.className = "text-2xl font-extrabold text-white tracking-tight";
+            }
+
+            if (startInventory <= 6.8) {
+                criticalDateText.innerText = "Già Superata";
+                criticalDateText.className = "text-2xl font-extrabold text-rose-500 tracking-tight";
+            } else {
+                criticalDateText.innerText = criticalDate ? criticalDate.toLocaleDateString('it-IT', options) : "Nessun Breach nel 2026";
+                criticalDateText.className = "text-2xl font-extrabold text-white tracking-tight";
+            }
+
+            updateChart(labels, inventoryData, alertLineData, criticalLineData);
+        }
+
+        function updateChart(labels, data, alertLine, criticalLine) {
+            const ctx = document.getElementById('oilChart').getContext('2d');
+            
+            if (chart) {
+                chart.data.labels = labels;
+                chart.data.datasets[0].data = data;
+                chart.data.datasets[1].data = alertLine;
+                chart.data.datasets[2].data = criticalLine;
+                chart.update('none'); // Aggiorna in modo fluido senza animazioni scattose
+                return;
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Riserve Globali (Miliardi di barili)',
+                            data: data,
+                            borderColor: '#3b82f6', // Blu moderno
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.1,
+                            pointRadius: 0,
+                            pointHitRadius: 10
+                        },
+                        {
+                            label: 'Soglia Alert (7.0B)',
+                            data: alertLine,
+                            borderColor: '#f59e0b', // Ambra
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            fill: false,
+                            pointRadius: 0,
+                            pointHitRadius: 0
+                        },
+                        {
+                            label: 'Limite Critico Fisico (6.8B)',
+                            data: criticalLine,
+                            borderColor: '#f43f5e', // Rosso/Rosa
+                            borderWidth: 1.5,
+                            borderDash: [6, 4],
+                            fill: false,
+                            pointRadius: 0,
+                            pointHitRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false // Nasconde la legenda nativa dentro il canvas (per usare quella descrittiva fuori)
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: '#0f172a',
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 12,
+                            boxPadding: 4,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    if (context.parsed.y !== null) {
+                                        label += context.parsed.y.toFixed(3) + ' Bbls';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(51, 65, 85, 0.15)'
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: {
+                                    size: 10
+                                },
+                                maxTicksLimit: 8
+                            }
+                        },
+                        y: {
+                            min: 6.2,
+                            max: 7.6,
+                            grid: {
+                                color: 'rgba(51, 65, 85, 0.25)'
+                            },
+                            ticks: {
+                                color: '#94a3b8',
+                                font: {
+                                    size: 10
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Sincronizza lo slider con l'input numerico del deficit
+        deficitSliderInput.addEventListener('input', (e) => {
+            deficitNumberInput.value = e.target.value;
+            runSimulation();
+        });
+
+        deficitNumberInput.addEventListener('input', (e) => {
+            let val = parseFloat(e.target.value);
+            if (val > 2.0) val = 2.0;
+            if (val < -8.0) val = -8.0;
+            deficitSliderInput.value = isNaN(val) ? -3.8 : val;
+            runSimulation();
+        });
+
+        // Event listener per la riserva iniziale
+        initialInventoryInput.addEventListener('input', () => {
+            runSimulation();
+        });
+
+        // Pulsante di ripristino valori di fabbrica IEA
+        resetBtn.addEventListener('click', () => {
+            initialInventoryInput.value = "7.38";
+            deficitNumberInput.value = "-3.8";
+            deficitSliderInput.value = "-3.8";
+            runSimulation();
+        });
+
+        // Avvio simulazione iniziale al caricamento
+        runSimulation();
+    </script>
+</body>
+</html>
