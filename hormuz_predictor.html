@@ -4,17 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hormuz Crisis Simulator 2026</title>
-    <!-- Tailwind CSS per uno stile moderno e responsive -->
+    <!-- Tailwind CSS per uno stile moderno, pulito e responsive -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Chart.js per la visualizzazione dei dati in tempo reale -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Google Fonts: Inter per un look pulito e leggibile -->
+    <!-- Chart.js (Versione UMD stabile v4) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- Adapter temporale con date-fns pre-pacchettizzato (Risolve problemi di dipendenze esterne) -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <!-- Google Fonts: Inter per un'eccellente leggibilità -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
-        /* Custom scrollbar per un look premium */
+        /* Scrollbar personalizzata premium per la modalità scura */
         ::-webkit-scrollbar {
             width: 8px;
             height: 8px;
@@ -33,7 +35,7 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-full flex flex-col justify-between">
 
-    <!-- Header Principale -->
+    <!-- Intestazione Principale -->
     <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-30">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div class="flex items-center gap-3">
@@ -44,21 +46,22 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                        <span data-i18n="app-title">Hormuz Crisis Simulator</span> <span class="text-xs font-normal px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-300">v2.1</span>
+                        <span data-i18n="app-title">Hormuz Crisis Simulator</span> 
+                        <span class="text-xs font-semibold px-2 py-0.5 bg-blue-500/10 border border-blue-500/20 rounded-full text-blue-300">v2.5</span>
                     </h1>
-                    <p class="text-xs text-slate-400" data-i18n="app-subtitle">Modello interattivo di svuotamento delle riserve petrolifere globali</p>
+                    <p class="text-xs text-slate-400" data-i18n="app-subtitle">Modello interattivo di svuotamento delle riserve petrolifere con serie storica reale da Marzo 2026</p>
                 </div>
             </div>
             
             <div class="flex items-center gap-3">
                 <!-- Selettore Lingua Interattivo -->
-                <button id="langToggle" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 rounded-lg text-slate-200 transition-all font-semibold uppercase flex items-center gap-1.5">
+                <button id="langToggle" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-650 rounded-lg text-slate-200 transition-all font-semibold uppercase flex items-center gap-1.5">
                     <span id="langFlag">🇬🇧</span> <span id="langText">EN</span>
                 </button>
                 
                 <div class="flex items-center gap-2 text-xs bg-slate-800/40 border border-slate-700/50 px-3 py-1.5 rounded-lg text-slate-400">
                     <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span data-i18n="app-timeline">Scenario Giugno - Dicembre 2026</span>
+                    <span data-i18n="app-timeline">Scenario 2026</span>
                 </div>
             </div>
         </div>
@@ -68,30 +71,27 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full">
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
-            <!-- Colonna Sinistra: Controlli e Form -->
+            <!-- Colonna Sinistra: Parametri di Input e Controlli -->
             <section class="lg:col-span-4 space-y-6">
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm space-y-6">
                     <div class="border-b border-slate-800 pb-4">
                         <h2 class="text-lg font-semibold text-white" data-i18n="sidebar-title">Parametri di Simulazione</h2>
-                        <p class="text-xs text-slate-400" data-i18n="sidebar-subtitle">Modifica i flussi e le riserve di partenza per testare la tenuta del sistema.</p>
+                        <p class="text-xs text-slate-400" data-i18n="sidebar-subtitle">Modifica il deficit futuro per testare la tenuta del sistema partendo dall'ultimo dato reale.</p>
                     </div>
 
-                    <!-- Input Riserve di Partenza -->
+                    <!-- Selezione Tipo Riserve -->
                     <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <label for="initialInventory" class="text-sm font-medium text-slate-300" data-i18n="label-initial">Riserve Iniziali (GigaBarili)</label>
-                            <span class="text-xs text-slate-400 font-mono" data-i18n="start-date-label">Giugno 15, 2026</span>
-                        </div>
-                        <div class="relative rounded-lg shadow-sm">
-                            <input type="number" id="initialInventory" step="0.01" min="6.0" max="8.0" value="7.40" 
-                                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-semibold transition-all">
-                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <span class="text-slate-500 text-sm font-semibold">Bbls</span>
-                            </div>
-                        </div>
+                        <label class="text-sm font-medium text-slate-300 block" data-i18n="label-reserve-type">Tipo di Riserva da Tracciare</label>
+                        <select id="reserveType" class="w-full bg-slate-950 border border-slate-800 rounded-xl py-2 px-3 text-slate-100 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500">
+                            <option value="commercial" selected data-i18n="opt-commercial">Scorte Commerciali a Terra (Consigliato, Inizio 7.85B)</option>
+                            <option value="global" data-i18n="opt-global">Scorte Globali Osservate IEA (Inizio 8.20B)</option>
+                        </select>
+                        <p class="text-[11px] text-slate-500 italic leading-relaxed" id="reserveDesc" data-i18n="desc-commercial">
+                            Mostra solo il petrolio stoccato nei serbatoi terrestri delle raffinerie. È la metrica corretta per calcolare il collasso fisico dei flussi (6.8B).
+                        </p>
                     </div>
 
-                    <!-- Input Deficit Giornaliero -->
+                    <!-- Deficit Giornaliero Proiettato -->
                     <div class="space-y-3">
                         <div class="flex justify-between items-center">
                             <label for="deficitNumber" class="text-sm font-medium text-slate-300" data-i18n="label-deficit">Deficit Giornaliero (Milioni b/g)</label>
@@ -104,39 +104,52 @@
                             <input type="range" id="deficitSlider" min="-8.0" max="2.0" step="0.1" value="-3.8"
                                 class="w-full h-2 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-blue-500">
                             <div class="flex justify-between text-[10px] text-slate-500 font-mono mt-1 px-1">
-                                <span>-8.0 (Estremo)</span>
+                                <span>-8.0 (Doomsday)</span>
                                 <span>-3.0</span>
                                 <span>0.0 (Pareggio)</span>
-                                <span>+2.0 (Accumulo)</span>
+                                <span>+2.0 (Ripresa)</span>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Soglia Allerta e Soglia Critica (Personalizzabili) -->
+                    <div class="grid grid-cols-2 gap-4 pt-2">
+                        <div class="space-y-1">
+                            <label for="thresholdAlert" class="text-xs text-slate-400 block" data-i18n="label-alert-threshold">Soglia Allerta (B)</label>
+                            <input type="number" id="thresholdAlert" step="0.05" min="6.0" max="8.0" value="7.00"
+                                class="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-center text-amber-500 font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-amber-500">
+                        </div>
+                        <div class="space-y-1">
+                            <label for="thresholdCritical" class="text-xs text-slate-400 block" data-i18n="label-crit-threshold">Soglia Critica (B)</label>
+                            <input type="number" id="thresholdCritical" step="0.05" min="6.0" max="8.0" value="6.80"
+                                class="w-full bg-slate-950 border border-slate-800 rounded-lg py-1.5 px-2 text-center text-rose-500 font-mono font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500">
                         </div>
                     </div>
 
                     <!-- Badge Dinamico dello Scenario -->
                     <div id="scenarioBadgeContainer" class="p-4 rounded-xl border transition-all duration-300 flex flex-col gap-1 items-center justify-center text-center">
-                        <span class="text-xs uppercase tracking-wider font-semibold opacity-70" data-i18n="label-classification">Classificazione Scenario</span>
+                        <span class="text-xs uppercase tracking-wider font-semibold opacity-70" data-i18n="label-classification">Classificazione Scenario Future</span>
                         <span id="scenarioName" class="text-lg font-extrabold tracking-tight">-</span>
                     </div>
 
-                    <!-- Bottone di Reset -->
+                    <!-- Bottone di Reset dei Parametri -->
                     <button id="resetBtn" class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-750 border border-slate-700 hover:border-slate-650 rounded-xl font-medium text-slate-200 transition-all text-sm flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19" />
                         </svg>
-                        <span data-i18n="btn-reset">Ripristina Dati IEA (Giugno)</span>
+                        <span data-i18n="btn-reset">Ripristina Deficit Medio (-3.8)</span>
                     </button>
                 </div>
 
-                <!-- Metric Cards: Date di Breach -->
+                <!-- Metric Cards: Date di Breach previste -->
                 <div class="grid grid-cols-1 gap-4">
                     <!-- Alert Threshold Card -->
                     <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex items-center justify-between gap-4">
                         <div class="space-y-1">
-                            <span class="text-xs font-semibold text-amber-500 uppercase tracking-wider" data-i18n="alert-title">Superamento Allerta (7.0B)</span>
-                            <p id="alertDateText" class="text-2xl font-extrabold text-white tracking-tight">-</p>
-                            <p class="text-[10px] text-slate-500" data-i18n="alert-desc">Frenata iniziale del sistema di raffinazione</p>
+                            <span class="text-xs font-semibold text-amber-500 uppercase tracking-wider" data-i18n="alert-title">Superamento Allerta</span>
+                            <p id="alertDateText" class="text-2xl font-bold text-white tracking-tight">-</p>
                         </div>
-                        <div class="p-3 bg-amber-500/10 border border-amber-500/20 text-amber-500 rounded-xl">
+                        <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                             </svg>
@@ -146,11 +159,10 @@
                     <!-- Critical Threshold Card -->
                     <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex items-center justify-between gap-4">
                         <div class="space-y-1">
-                            <span class="text-xs font-semibold text-red-500 uppercase tracking-wider" data-i18n="crit-title">Limite Critico Fisico (6.8B)</span>
-                            <p id="criticalDateText" class="text-2xl font-extrabold text-white tracking-tight">-</p>
-                            <p class="text-[10px] text-slate-500" data-i18n="crit-desc">Arresto tecnico e collasso della logistica</p>
+                            <span class="text-xs font-semibold text-rose-500 uppercase tracking-wider" data-i18n="critical-title">Limite Critico Fisico</span>
+                            <p id="criticalDateText" class="text-2xl font-bold text-white tracking-tight">-</p>
                         </div>
-                        <div class="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl">
+                        <div class="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                             </svg>
@@ -159,279 +171,387 @@
                 </div>
             </section>
 
-            <!-- Colonna Destra: Grafico e Legenda -->
-            <section class="lg:col-span-8 bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm flex flex-col justify-between">
-                <div>
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-800 pb-4 mb-6">
+            <!-- Colonna Destra: Grafico Temporale -->
+            <section class="lg:col-span-8 space-y-6">
+                <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                         <div>
-                            <h2 class="text-lg font-semibold text-white" data-i18n="chart-title">Proiezione Scorte Globali (Miliardi di Barili)</h2>
-                            <p class="text-xs text-slate-400" data-i18n="chart-subtitle">Orizzonte temporale esteso fino al 31 Dicembre 2026</p>
+                            <h2 class="text-lg font-semibold text-white" data-i18n="chart-title">Curva di Svuotamento delle Scorte</h2>
+                            <p class="text-xs text-slate-400" data-i18n="chart-subtitle">Serie storica reale (linea continua) e proiezione futura (linea tratteggiata) fino a fine anno</p>
                         </div>
-                        
-                        <!-- Legenda esterna compatta -->
-                        <div class="flex flex-wrap gap-3 text-xs">
-                            <span class="flex items-center gap-1.5 text-blue-400 font-medium">
-                                <span class="w-3 h-1 bg-blue-500 rounded"></span>
-                                <span data-i18n="legend-reserves">Scorte Totali</span>
-                            </span>
-                            <span class="flex items-center gap-1.5 text-amber-500 font-medium">
-                                <span class="w-3 h-1 border-b border-dashed border-amber-500"></span>
-                                <span data-i18n="legend-alert">Soglia Allerta (7.0B)</span>
-                            </span>
-                            <span class="flex items-center gap-1.5 text-red-500 font-medium">
-                                <span class="w-3 h-1 border-b border-dashed border-red-500"></span>
-                                <span data-i18n="legend-crit">Limite Critico (6.8B)</span>
-                            </span>
+                        <!-- Legenda Personalizzata Esterna -->
+                        <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-1 bg-blue-500 rounded-full inline-block"></span>
+                                <span class="text-slate-300" data-i18n="legend-actual">Reale (Storico)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-0.5 border-t border-dashed border-sky-400 rounded-full inline-block"></span>
+                                <span class="text-slate-300" data-i18n="legend-forecast">Proiezione (Scenario)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-0.5 border-t border-amber-500 rounded-full inline-block"></span>
+                                <span class="text-slate-300" data-i18n="legend-alert">Allerta</span>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-3 h-0.5 border-t border-rose-500 rounded-full inline-block"></span>
+                                <span class="text-slate-300" data-i18n="legend-critical">Critico</span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Contenitore del Grafico -->
-                    <div class="relative w-full h-[400px]">
-                        <canvas id="liveChart"></canvas>
+                    <!-- Canvas del Grafico Chart.js -->
+                    <div class="relative h-[400px] w-full bg-slate-950/40 rounded-xl p-2 border border-slate-800/50">
+                        <canvas id="depletionChart"></canvas>
                     </div>
                 </div>
 
-                <div class="border-t border-slate-800 pt-4 mt-6 text-center text-xs text-slate-500" data-i18n="footer-disclaimer">
-                    Modello matematico deterministico non lineare basato sui tassi stimati di esportazione globale.
+                <!-- Box Informativo Analitico -->
+                <div class="bg-blue-950/20 border border-blue-900/30 rounded-2xl p-6">
+                    <h3 class="text-sm font-semibold text-blue-400 mb-2 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span data-i18n="info-box-title">Nota Metodologica e Analisi di HFI Research</span>
+                    </h3>
+                    <p class="text-xs text-slate-300 leading-relaxed" id="analyticalContent" data-i18n="info-box-body">
+                        Come evidenziato dal team di @HFI_Research, il mercato globale si è cullato sul dato fittizio degli 8.2 miliardi di barili totali registrati a inizio anno, ignorando il fatto che la stragrande maggioranza di quel petrolio è bloccato in riserve strategiche statali inaccessibili o stoccato sulle navi in viaggio. Le scorte commerciali terrestri realmente utilizzabili dai raffinatori ammontavano a soli 7.85 miliardi a marzo. Al ritmo di prelievo attuale dovuto al blocco persistente di Hormuz per i vettori del G7, il superamento delle soglie critiche provocherà un blocco operativo delle raffinerie molto prima della fine dell'anno, forzando misure di austerity (Smart Working e Kurzarbeit) in tutta Europa entro autunno 2026.
+                    </p>
                 </div>
             </section>
-            
         </div>
     </main>
 
-    <!-- Footer Istituzionale -->
-    <footer class="border-t border-slate-850 bg-slate-950 py-4 text-center text-xs text-slate-600">
-        <p>&copy; 2026 Hormuz Strait Monitor & IEA Simulated Analytics. Developed for Strategic Economic Planning.</p>
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-6">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p class="text-xs text-slate-500">
+                &copy; 2026 Hormuz Strait Monitor Project. Tutti i diritti riservati.
+            </p>
+            <p class="text-xs text-slate-500 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> <span data-i18n="footer-status">Feed dati aggiornato a inizio Luglio 2026</span>
+            </p>
+        </div>
     </footer>
 
-    <!-- Logica di Internazionalizzazione e Grafici -->
     <script>
-        // Dizionario delle traduzioni Italian / English
-        const translations = {
+        // --- DIZIONARIO MULTILINGUA INTERATTIVO (i18n) ---
+        const TRANSLATIONS = {
             it: {
                 "app-title": "Hormuz Crisis Simulator",
-                "app-subtitle": "Modello interattivo di svuotamento delle riserve petrolifere globali",
-                "app-timeline": "Scenario Giugno - Dicembre 2026",
+                "app-subtitle": "Modello di svuotamento delle riserve petrolifere con serie storica reale da Marzo 2026",
+                "app-timeline": "Scenario Marzo - Dicembre 2026",
                 "sidebar-title": "Parametri di Simulazione",
-                "sidebar-subtitle": "Modifica i flussi e le riserve di partenza per testare la tenuta del sistema.",
-                "label-initial": "Riserve Iniziali (GigaBarili)",
+                "sidebar-subtitle": "Modifica il deficit futuro per testare la tenuta del sistema partendo dall'ultimo dato reale.",
+                "label-reserve-type": "Tipo di Riserva da Tracciare",
+                "opt-commercial": "Scorte Commerciali a Terra (Consigliato, Inizio 7.85B)",
+                "opt-global": "Scorte Globali Osservate IEA (Inizio 8.20B)",
+                "desc-commercial": "Mostra solo il petrolio stoccato nei serbatoi terrestri delle raffinerie. È la metrica corretta per calcolare il collasso fisico dei flussi (6.8B).",
+                "desc-global": "Include anche le riserve strategiche governative e il petrolio attualmente in navigazione marittima. Non si sa quante scorte reali rimangano effettivamente in queste riserve strategiche.",
                 "label-deficit": "Deficit Giornaliero (Milioni b/g)",
-                "label-classification": "Classificazione Scenario",
-                "btn-reset": "Ripristina Dati IEA (Giugno)",
-                "alert-title": "Superamento Allerta (7.0B)",
-                "alert-desc": "Frenata iniziale del sistema di raffinazione",
-                "crit-title": "Limite Critico Fisico (6.8B)",
-                "crit-desc": "Arresto tecnico e blocco della logistica",
-                "chart-title": "Proiezione Scorte Globali (Miliardi di Barili)",
-                "chart-subtitle": "Orizzonte temporale esteso fino al 31 Dicembre 2026",
-                "legend-reserves": "Scorte Totali",
-                "legend-alert": "Soglia Allerta (7.0B)",
-                "legend-crit": "Limite Critico (6.8B)",
-                "footer-disclaimer": "Modello matematico deterministico non lineare basato sui tassi stimati di esportazione globale.",
-                "start-date-label": "Giugno 15, 2026",
-                // Scenari
-                "sc-doomsday": "Doomsday (Catastrofico)",
-                "sc-pessimistic": "Scenario Pessimistico",
-                "sc-medhigh": "Scenario Medio-Alto",
-                "sc-medium": "Scenario Medio",
-                "sc-lowmed": "Scenario Medio-Basso",
+                "label-alert-threshold": "Soglia Allerta (B)",
+                "label-crit-threshold": "Soglia Critica (B)",
+                "label-classification": "Classificazione Scenario Future",
+                "btn-reset": "Ripristina Deficit Medio (-3.8)",
+                "alert-title": "Superamento Allerta",
+                "critical-title": "Limite Critico Fisico",
+                "chart-title": "Curva di Svuotamento delle Scorte",
+                "chart-subtitle": "Serie storica reale (linea continua) e proiezione futura (linea tratteggiata) fino a fine anno",
+                "legend-actual": "Reale (Storico)",
+                "legend-forecast": "Proiezione (Scenario)",
+                "legend-alert": "Allerta",
+                "legend-critical": "Critico",
+                "info-box-title": "Nota Metodologica e Analisi di HFI Research",
+                "info-box-body": "Come evidenziato dal team di @HFI_Research, il mercato globale si è cullato sul dato fittizio degli 8.2 miliardi di barili totali registrati a inizio anno, ignorando il fatto che la stragrande maggioranza di quel petrolio è bloccato in riserve strategiche statali inaccessibili o stoccato sulle navi in viaggio. Le scorte commerciali terrestri realmente utilizzabili dai raffinatori ammontavano a soli 7.85 miliardi a marzo. Al ritmo di prelievo attuale dovuto al blocco persistente di Hormuz per i vettori del G7, il superamento delle soglie critiche provocherà un blocco operativo delle raffinerie molto prima della fine dell'anno, forzando misure di austerity (Smart Working e Kurzarbeit) in tutta Europa entro autunno 2026. Non è noto quanto petrolio sia rimasto effettivamente all'interno delle riserve strategiche statali globali ad oggi.",
+                "footer-status": "Feed dati aggiornato a inizio Luglio 2026",
+                "sc-doomsday": "Doomsday (Collasso Immediato)",
+                "sc-pessimistic": "Scenario Altamente Pessimista",
+                "sc-mid-high": "Scenario Medio-Alto",
+                "sc-medium": "Scenario Medio-Standard",
+                "sc-mid-low": "Scenario Medio-Basso",
                 "sc-optimistic": "Scenario Ottimistico",
-                "sc-breakeven": "Pareggio (Standby)",
-                "sc-recovery": "Scenario di Ripresa",
-                // Stati
-                "no-breach": "Nessun Superamento",
-                "already-breached": "Già Superato",
-                "post-2026": "Post-2026"
+                "sc-recovery": "Scenario di Ripresa / Accumulo",
+                "no-breach": "Nessun superamento nel 2026",
+                "already-breached": "Già superato nei dati storici"
             },
             en: {
                 "app-title": "Hormuz Crisis Simulator",
-                "app-subtitle": "Interactive global oil inventory depletion model",
-                "app-timeline": "June - December 2026 Scenario",
+                "app-subtitle": "Interactive depletion model of global oil inventories with real historical series from March 2026",
+                "app-timeline": "Scenario March - December 2026",
                 "sidebar-title": "Simulation Parameters",
-                "sidebar-subtitle": "Adjust initial reserves and flow rates to test system resilience.",
-                "label-initial": "Initial Reserves (Billion Barrels)",
+                "sidebar-subtitle": "Modify future deficit to test system resilience starting from the latest real historical data.",
+                "label-reserve-type": "Inventory Metric to Track",
+                "opt-commercial": "Commercial Land Inventories (Recommended, Starts 7.85B)",
+                "opt-global": "IEA Observed Global Stocks (Starts 8.20B)",
+                "desc-commercial": "Displays only the oil physical stored in land tanks at refineries. This is the correct metric to calculate physical line blockages (6.8B).",
+                "desc-global": "Includes strategic government reserves and oil currently in maritime transit. It is currently unknown how much of this volume is left in strategic reserves.",
                 "label-deficit": "Daily Deficit (Million b/d)",
-                "label-classification": "Scenario Classification",
-                "btn-reset": "Reset to IEA June Data",
-                "alert-title": "Alert Threshold Breach (7.0B)",
-                "alert-desc": "Initial slowdown of the refining system",
-                "crit-title": "Physical Critical Limit (6.8B)",
-                "crit-desc": "Technical shutdown and logistical collapse",
-                "chart-title": "Global Inventory Projection (Billion Barrels)",
-                "chart-subtitle": "Time horizon extended to December 31, 2026",
-                "legend-reserves": "Total Reserves",
-                "legend-alert": "Alert Level (7.0B)",
-                "legend-crit": "Critical Limit (6.8B)",
-                "footer-disclaimer": "Deterministic non-linear mathematical model based on estimated global export rates.",
-                "start-date-label": "June 15, 2026",
-                // Scenari
-                "sc-doomsday": "Doomsday Scenario",
-                "sc-pessimistic": "Pessimistic Scenario",
-                "sc-medhigh": "Medium-High Scenario",
-                "sc-medium": "Medium Scenario",
-                "sc-lowmed": "Low-Medium Scenario",
+                "label-alert-threshold": "Alert Threshold (B)",
+                "label-crit-threshold": "Critical Threshold (B)",
+                "label-classification": "Future Scenario Classification",
+                "btn-reset": "Reset to Baseline Deficit (-3.8)",
+                "alert-title": "Alert Breach",
+                "critical-title": "Physical Critical Limit",
+                "chart-title": "Inventory Depletion Trajectory",
+                "chart-subtitle": "Real historical data (solid line) and future projection (dashed line) to year-end",
+                "legend-actual": "Actual (Historical)",
+                "legend-forecast": "Projection (Scenario)",
+                "legend-alert": "Alert",
+                "legend-critical": "Critical",
+                "info-box-title": "Methodological Note & HFI Research Analysis",
+                "info-box-body": "As highlighted by the @HFI_Research team, the global market complacently relied on the fictitious 8.2 billion barrels of total stocks registered early this year, ignoring that the vast majority of that oil is locked in inaccessible state strategic reserves or floating on ships. Earthbound commercial inventories actually usable by refiners amounted to just 7.85 billion in March. Under the current draw-down rate caused by the persistent Hormuz block on G7 carriers, breaching the critical thresholds will trigger physical refinery blockages long before winter, forcing strict austerity measures (Smart Working and Kurzarbeit) across Europe by Autumn 2026. How much buffer remains inside state strategic reserves is highly uncertain.",
+                "footer-status": "Data feed updated to early July 2026",
+                "sc-doomsday": "Doomsday (Immediate Collapse)",
+                "sc-pessimistic": "Highly Pessimistic Scenario",
+                "sc-mid-high": "Medium-High Scenario",
+                "sc-medium": "Medium-Standard Scenario",
+                "sc-mid-low": "Medium-Low Scenario",
                 "sc-optimistic": "Optimistic Scenario",
-                "sc-breakeven": "Break-even (Standby)",
-                "sc-recovery": "Recovery Scenario",
-                // Stati
-                "no-breach": "No Breach",
-                "already-breached": "Already Breached",
-                "post-2026": "Post-2026"
+                "sc-recovery": "Recovery / Re-stocking Scenario",
+                "no-breach": "No breach detected in 2026",
+                "already-breached": "Already breached in historical data"
             }
         };
 
         let currentLang = 'it';
-        let chartInstance = null;
 
-        // Selettori elementi UI
-        const initialInput = document.getElementById('initialInventory');
-        const deficitSlider = document.getElementById('deficitSlider');
-        const deficitNumber = document.getElementById('deficitNumber');
-        const scenarioBadgeContainer = document.getElementById('scenarioBadgeContainer');
-        const scenarioName = document.getElementById('scenarioName');
-        const alertDateText = document.getElementById('alertDateText');
-        const criticalDateText = document.getElementById('criticalDateText');
-        const resetBtn = document.getElementById('resetBtn');
-        const langToggle = document.getElementById('langToggle');
-        const langFlag = document.getElementById('langFlag');
-        const langText = document.getElementById('langText');
+        // Serie Storica Reale 1: Scorte Commerciali a Terra (HFI / EIA basis)
+        const ACTUALS_COMMERCIAL = [
+            { x: new Date(2026, 2, 1), y: 7.85 },   // 1 Marzo
+            { x: new Date(2026, 3, 1), y: 7.76 },   // 1 Aprile
+            { x: new Date(2026, 4, 1), y: 7.64 },   // 1 Maggio
+            { x: new Date(2026, 5, 1), y: 7.50 },   // 1 Giugno
+            { x: new Date(2026, 5, 15), y: 7.40 }   // 15 Giugno (Ultimo dato reale consolidato)
+        ];
 
-        // Impostazioni di default
-        const DEFAULT_RESERVES = 7.40;
-        const DEFAULT_DEFICIT = -3.8;
+        // Serie Storica Reale 2: Scorte Globali Osservate IEA (Inclusi SPR e Oil on Water)
+        const ACTUALS_GLOBAL = [
+            { x: new Date(2026, 2, 1), y: 8.20 },   // 1 Marzo
+            { x: new Date(2026, 3, 1), y: 8.07 },   // 1 Aprile
+            { x: new Date(2026, 4, 1), y: 7.95 },   // 1 Maggio
+            { x: new Date(2026, 5, 1), y: 7.81 },   // 1 Giugno
+            { x: new Date(2026, 5, 15), y: 7.72 }   // 15 Giugno
+        ];
 
+        // --- ACQUISIZIONE ELEMENTI DOM ---
+        const inputDeficitNumber = document.getElementById('deficitNumber');
+        const inputDeficitSlider = document.getElementById('deficitSlider');
+        const selectReserveType = document.getElementById('reserveType');
+        const pReserveDesc = document.getElementById('reserveDesc');
+        const inputThresholdAlert = document.getElementById('thresholdAlert');
+        const inputThresholdCritical = document.getElementById('thresholdCritical');
+        
+        const badgeContainer = document.getElementById('scenarioBadgeContainer');
+        const labelScenarioName = document.getElementById('scenarioName');
+        const labelAlertDate = document.getElementById('alertDateText');
+        const labelCriticalDate = document.getElementById('criticalDateText');
+        const btnReset = document.getElementById('resetBtn');
+        const btnLangToggle = document.getElementById('langToggle');
+
+        let myChart = null;
+
+        // --- STREAMING_CHUNK: Traduzione dinamica degli elementi i18n... -->
+        function applyTranslations() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (TRANSLATIONS[currentLang][key]) {
+                    if (el.tagName === 'INPUT' && el.placeholder) {
+                        el.placeholder = TRANSLATIONS[currentLang][key];
+                    } else if (el.tagName === 'OPTION') {
+                        el.text = TRANSLATIONS[currentLang][key];
+                    } else {
+                        el.innerHTML = TRANSLATIONS[currentLang][key];
+                    }
+                }
+            });
+
+            // Aggiorna le descrizioni informative del selettore
+            const isComm = selectReserveType.value === 'commercial';
+            pReserveDesc.innerHTML = TRANSLATIONS[currentLang][isComm ? 'desc-commercial' : 'desc-global'];
+
+            // Forza traduzione etichette legenda di ChartJS
+            if (myChart) {
+                myChart.data.datasets[0].label = TRANSLATIONS[currentLang]['legend-actual'];
+                myChart.data.datasets[1].label = TRANSLATIONS[currentLang]['legend-forecast'];
+                myChart.update();
+            }
+        }
+
+        // --- STREAMING_CHUNK: Motore di simulazione e calcolo dei breach... -->
         function updateSimulation() {
-            const startVal = parseFloat(initialInput.value) || DEFAULT_RESERVES;
-            const deficitVal = parseFloat(deficitSlider.value);
-            const totalDays = 200; // Da Metà Giugno a Fine Anno
+            const deficit = parseFloat(inputDeficitNumber.value) || -3.8;
+            const alertThreshold = parseFloat(inputThresholdAlert.value) || 7.00;
+            const criticalThreshold = parseFloat(inputThresholdCritical.value) || 6.80;
+            const reserveType = selectReserveType.value;
+
+            // Selezione serie storica in base al tipo di riserva
+            const historicalData = reserveType === 'commercial' ? ACTUALS_COMMERCIAL : ACTUALS_GLOBAL;
+            const lastHistoricalPoint = historicalData[historicalData.length - 1];
+            const startForecastDate = new Date(lastHistoricalPoint.x);
+
+            // Generazione serie storica reale sul grafico
+            const actualPoints = historicalData.map(pt => ({
+                x: pt.x,
+                y: pt.y
+            }));
+
+            // Generazione proiezione futura (15 Giugno - 31 Dicembre 2026)
+            const forecastPoints = [{ x: lastHistoricalPoint.x, y: lastHistoricalPoint.y }];
+            const endSimulationDate = new Date(2026, 11, 31);
             
-            const labels = [];
-            const dataPoints = [];
-            const alertLine = [];
-            const criticalLine = [];
+            let currentDate = new Date(startForecastDate);
+            currentDate.setDate(currentDate.getDate() + 1);
 
-            let breachAlertIdx = -1;
-            let breachCritIdx = -1;
+            let alertDate = null;
+            let criticalDate = null;
 
-            for (let i = 0; i <= totalDays; i++) {
-                const currentDate = new Date(2026, 5, 15); // 15 Giugno 2026
-                currentDate.setDate(currentDate.getDate() + i);
-                
-                // Formatta asse X
-                const options = { month: 'short', day: 'numeric' };
-                labels.push(currentDate.toLocaleDateString(currentLang === 'it' ? 'it-IT' : 'en-US', options));
-
-                // 1 milione b/g corrisponde a 0.001 GigaBarili
-                const currentInventory = Math.max(0, startVal + (deficitVal * (i / 1000)));
-                dataPoints.push(currentInventory);
-                alertLine.push(7.0);
-                criticalLine.push(6.8);
-
-                if (currentInventory <= 7.0 && breachAlertIdx === -1) {
-                    breachAlertIdx = i;
+            // Verifica se le soglie sono già state violate nei dati storici passati
+            historicalData.forEach(pt => {
+                if (pt.y <= alertThreshold && !alertDate) {
+                    alertDate = 'already-breached';
                 }
-                if (currentInventory <= 6.8 && breachCritIdx === -1) {
-                    breachCritIdx = i;
+                if (pt.y <= criticalThreshold && !criticalDate) {
+                    criticalDate = 'already-breached';
                 }
+            });
+
+            // Simulazione passo giornaliero
+            let currentReserves = lastHistoricalPoint.y;
+
+            while (currentDate <= endSimulationDate) {
+                // Conversione da milioni di barili al giorno a miliardi di barili al giorno
+                const dailyDraw = (deficit * 1000000) / 1000000000;
+                currentReserves = Math.max(0, currentReserves + dailyDraw);
+
+                forecastPoints.push({
+                    x: new Date(currentDate),
+                    y: parseFloat(currentReserves.toFixed(3))
+                });
+
+                if (currentReserves <= alertThreshold && !alertDate) {
+                    alertDate = new Date(currentDate);
+                }
+                if (currentReserves <= criticalThreshold && !criticalDate) {
+                    criticalDate = new Date(currentDate);
+                }
+
+                currentDate.setDate(currentDate.getDate() + 1);
             }
 
-            // Calcolo e formattazione date dei superamenti
-            const formatDate = (idx) => {
-                if (idx === -1) return translations[currentLang]["post-2026"];
-                if (idx === 0 && startVal <= (7.0)) {
-                    if (startVal <= 6.8 && idx === 0) return translations[currentLang]["already-breached"];
-                    return translations[currentLang]["already-breached"];
-                }
-                const d = new Date(2026, 5, 15);
-                d.setDate(d.getDate() + idx);
-                return d.toLocaleDateString(currentLang === 'it' ? 'it-IT' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+            // --- CLASSIFICAZIONE DINAMICA SCENARIO ---
+            let badgeBg = 'bg-emerald-950/40 border-emerald-500/30 text-emerald-400';
+            let scenarioTextKey = 'sc-recovery';
+
+            if (deficit <= -6.0) {
+                badgeBg = 'bg-rose-950/60 border-rose-500/50 text-rose-400 animate-pulse font-extrabold';
+                scenarioTextKey = 'sc-doomsday';
+            } else if (deficit <= -5.0) {
+                badgeBg = 'bg-rose-950/40 border-rose-500/30 text-rose-400 font-semibold';
+                scenarioTextKey = 'sc-pessimistic';
+            } else if (deficit <= -4.0) {
+                badgeBg = 'bg-amber-950/40 border-amber-500/30 text-amber-400';
+                scenarioTextKey = 'sc-mid-high';
+            } else if (deficit <= -3.5) {
+                badgeBg = 'bg-blue-950/40 border-blue-500/30 text-blue-400';
+                scenarioTextKey = 'sc-medium';
+            } else if (deficit < -2.0) {
+                badgeBg = 'bg-sky-950/40 border-sky-500/30 text-sky-400';
+                scenarioTextKey = 'sc-mid-low';
+            } else if (deficit < 0) {
+                badgeBg = 'bg-teal-950/40 border-teal-500/30 text-teal-400';
+                scenarioTextKey = 'sc-optimistic';
+            }
+
+            badgeContainer.className = `p-4 rounded-xl border transition-all duration-300 flex flex-col gap-1 items-center justify-center text-center ${badgeBg}`;
+            labelScenarioName.innerText = TRANSLATIONS[currentLang][scenarioTextKey];
+
+            // --- FORMATTAZIONE DATE DI BREACH ---
+            const formatDate = (date) => {
+                if (date === 'already-breached') return TRANSLATIONS[currentLang]['already-breached'];
+                if (!date) return TRANSLATIONS[currentLang]['no-breach'];
+                return date.toLocaleDateString(currentLang === 'it' ? 'it-IT' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' });
             };
 
-            // Aggiorna metriche
-            alertDateText.innerText = startVal <= 7.0 ? translations[currentLang]["already-breached"] : formatDate(breachAlertIdx);
-            criticalDateText.innerText = startVal <= 6.8 ? translations[currentLang]["already-breached"] : formatDate(breachCritIdx);
+            labelAlertDate.innerText = formatDate(alertDate);
+            labelCriticalDate.innerText = formatDate(criticalDate);
 
-            // Classifica lo scenario
-            classifyScenario(deficitVal);
-
-            // Aggiorna il Grafico
-            updateChart(labels, dataPoints, alertLine, criticalLine);
+            // --- AGGIORNAMENTO GRAFICO ---
+            updateChart(actualPoints, forecastPoints, alertThreshold, criticalThreshold);
         }
 
-        // Funzione per assegnare lo stile e il nome dello scenario
-        function classifyScenario(val) {
-            scenarioBadgeContainer.className = "p-4 rounded-xl border transition-all duration-300 flex flex-col gap-1 items-center justify-center text-center";
-            
-            if (val <= -6.0) {
-                scenarioName.innerText = translations[currentLang]["sc-doomsday"];
-                scenarioBadgeContainer.classList.add("bg-red-950/40", "border-red-500/30", "text-red-400", "animate-pulse");
-            } else if (val <= -5.0) {
-                scenarioName.innerText = translations[currentLang]["sc-pessimistic"];
-                scenarioBadgeContainer.classList.add("bg-orange-950/40", "border-orange-500/30", "text-orange-400");
-            } else if (val <= -4.0) {
-                scenarioName.innerText = translations[currentLang]["sc-medhigh"];
-                scenarioBadgeContainer.classList.add("bg-amber-950/40", "border-amber-500/30", "text-amber-400");
-            } else if (val <= -3.0) {
-                scenarioName.innerText = translations[currentLang]["sc-medium"];
-                scenarioBadgeContainer.classList.add("bg-yellow-950/40", "border-yellow-500/30", "text-yellow-400");
-            } else if (val <= -2.0) {
-                scenarioName.innerText = translations[currentLang]["sc-lowmed"];
-                scenarioBadgeContainer.classList.add("bg-blue-950/40", "border-blue-500/30", "text-blue-400");
-            } else if (val < 0) {
-                scenarioName.innerText = translations[currentLang]["sc-optimistic"];
-                scenarioBadgeContainer.classList.add("bg-sky-950/40", "border-sky-500/30", "text-sky-400");
-            } else if (val === 0.0) {
-                scenarioName.innerText = translations[currentLang]["sc-breakeven"];
-                scenarioBadgeContainer.classList.add("bg-slate-800/40", "border-slate-700/30", "text-slate-300");
-            } else {
-                scenarioName.innerText = translations[currentLang]["sc-recovery"];
-                scenarioBadgeContainer.classList.add("bg-emerald-950/40", "border-emerald-500/30", "text-emerald-400");
+        // --- STREAMING_CHUNK: Configurazione e rendering di Chart.js con Plugin Custom... -->
+        // Questo custom plugin disegna le linee di riferimento orizzontali in modo diretto sul canvas.
+        // Questo evita del tutto i bug legati ad 'hitRadius' ed elementi vuoti durante gli aggiornamenti dinamici.
+        const thresholdLinesPlugin = {
+            id: 'thresholdLines',
+            afterDraw(chart) {
+                const { ctx, chartArea: { left, right }, scales: { y } } = chart;
+                ctx.save();
+                ctx.setLineDash([6, 4]);
+                ctx.lineWidth = 1.5;
+
+                // 1. Soglia di Allerta (Arancione)
+                const alertVal = parseFloat(inputThresholdAlert.value) || 7.00;
+                const alertY = y.getPixelForValue(alertVal);
+                if (alertY >= chart.chartArea.top && alertY <= chart.chartArea.bottom) {
+                    ctx.strokeStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.moveTo(left, alertY);
+                    ctx.lineTo(right, alertY);
+                    ctx.stroke();
+                }
+
+                // 2. Soglia Critica (Rosso)
+                const criticalVal = parseFloat(inputThresholdCritical.value) || 6.80;
+                const criticalY = y.getPixelForValue(criticalVal);
+                if (criticalY >= chart.chartArea.top && criticalY <= chart.chartArea.bottom) {
+                    ctx.strokeStyle = '#f43f5e';
+                    ctx.beginPath();
+                    ctx.moveTo(left, criticalY);
+                    ctx.lineTo(right, criticalY);
+                    ctx.stroke();
+                }
+
+                ctx.restore();
             }
-        }
+        };
 
-        function updateChart(labels, data, alert, crit) {
-            if (chartInstance) {
-                chartInstance.data.labels = labels;
-                chartInstance.data.datasets[0].data = data;
-                chartInstance.data.datasets[1].data = alert;
-                chartInstance.data.datasets[2].data = crit;
-                chartInstance.update();
+        function updateChart(actuals, forecast, alertVal, criticalVal) {
+            const ctx = document.getElementById('depletionChart').getContext('2d');
+
+            if (myChart) {
+                // Aggiorna solo i due dataset reali interattivi
+                myChart.data.datasets[0].data = actuals;
+                myChart.data.datasets[1].data = forecast;
+                myChart.options.scales.y.min = Math.min(6.2, criticalVal - 0.2);
+                myChart.options.scales.y.max = selectReserveType.value === 'commercial' ? 8.0 : 8.4;
+                myChart.update('none'); // Disattiva le animazioni di transizione per evitare sfarfallii o glitch
                 return;
             }
 
-            const canvas = document.getElementById('liveChart');
-            chartInstance = new Chart(canvas, {
-                type: 'line',
+            myChart = new Chart(ctx, {
+                type: 'line', 
                 data: {
-                    labels: labels,
                     datasets: [
                         {
-                            label: currentLang === 'it' ? 'Scorte' : 'Reserves',
-                            data: data,
-                            borderColor: '#3b82f6',
-                            borderWidth: 3,
-                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
-                            fill: true,
-                            tension: 0.1,
-                            pointRadius: 1,
-                            pointHoverRadius: 6
-                        },
-                        {
-                            label: '7.0B Alert',
-                            data: alert,
-                            borderColor: '#f59e0b',
-                            borderWidth: 1.5,
-                            borderDash: [5, 5],
-                            pointRadius: 0,
+                            label: TRANSLATIONS[currentLang]['legend-actual'],
+                            data: actuals,
+                            borderColor: '#3b82f6', // Blu reale per serie reale
+                            backgroundColor: '#3b82f6',
+                            borderWidth: 3.5,
+                            pointRadius: 4,
+                            pointHoverRadius: 6,
                             fill: false
                         },
                         {
-                            label: '6.8B Critical',
-                            data: crit,
-                            borderColor: '#ef4444',
-                            borderWidth: 1.5,
-                            borderDash: [5, 5],
+                            label: TRANSLATIONS[currentLang]['legend-forecast'],
+                            data: forecast,
+                            borderColor: '#38bdf8', // Azzurro tratteggiato per proiezione
+                            backgroundColor: 'transparent',
+                            borderWidth: 2.5,
+                            borderDash: [6, 4],
                             pointRadius: 0,
+                            pointHoverRadius: 4,
                             fill: false
                         }
                     ]
@@ -439,98 +559,131 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'nearest',
+                        intersect: false
+                    },
                     plugins: {
                         legend: {
-                            display: false // Usiamo la nostra legenda HTML customizzata
+                            display: false // Usiamo la leggenda HTML esterna
                         },
                         tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            backgroundColor: '#0f172a',
-                            titleColor: '#f8fafc',
-                            bodyColor: '#cbd5e1',
-                            borderColor: '#334155',
-                            borderWidth: 1
+                            callbacks: {
+                                label: function(context) {
+                                    const date = new Date(context.parsed.x).toLocaleDateString(currentLang === 'it' ? 'it-IT' : 'en-US', { day: 'numeric', month: 'short' });
+                                    return `${date}: ${context.parsed.y} Billion Barrels`;
+                                }
+                            }
                         }
                     },
                     scales: {
                         x: {
+                            type: 'time',
+                            time: {
+                                unit: 'month',
+                                displayFormats: {
+                                    month: 'MMM yyyy' // RISOLVE RANGEERROR: Usa yyyy minuscolo
+                                }
+                            },
                             grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: '#1e293b'
                             },
                             ticks: {
-                                color: '#94a3b8',
-                                maxTicksLimit: 12
+                                color: '#94a3b8'
                             }
                         },
                         y: {
-                            min: 6.4,
+                            min: 6.2,
                             max: 8.0,
                             grid: {
-                                color: 'rgba(255, 255, 255, 0.05)'
+                                color: '#1e293b'
                             },
                             ticks: {
-                                color: '#94a3b8',
-                                stepSize: 0.2
+                                color: '#94a3b8'
                             }
                         }
                     }
-                }
+                },
+                plugins: [thresholdLinesPlugin] // Registrazione del plugin custom di sbarramento
             });
         }
 
-        // Sincronizzazione Slider e Input Numerico
-        deficitSlider.addEventListener('input', (e) => {
-            deficitNumber.value = e.target.value;
+        // --- STREAMING_CHUNK: Gestione eventi, ascoltatori di input e sincronizzazione robusta... -->
+        // SINCRONIZZAZIONE INTELLIGENTE: Evita conflitti di digitazione per il segno meno "-" e per i decimali incompleti
+        inputDeficitSlider.addEventListener('input', (e) => {
+            inputDeficitNumber.value = e.target.value;
             updateSimulation();
         });
 
-        deficitNumber.addEventListener('input', (e) => {
+        inputDeficitNumber.addEventListener('input', (e) => {
+            const rawVal = e.target.value;
+            // Se l'utente sta ancora digitando il segno meno, cancella l'input o scrive un punto, aspetta a validare
+            if (rawVal === '-' || rawVal === '' || rawVal.endsWith('.')) {
+                return; 
+            }
+            let val = parseFloat(rawVal);
+            if (!isNaN(val)) {
+                if (val < -8.0) val = -8.0;
+                if (val > 2.0) val = 2.0;
+                inputDeficitSlider.value = val;
+                updateSimulation();
+            }
+        });
+
+        // Forza la normalizzazione dei limiti corretti solo al termine della digitazione (quando perde il focus)
+        inputDeficitNumber.addEventListener('blur', (e) => {
             let val = parseFloat(e.target.value);
-            if (isNaN(val)) return;
+            if (isNaN(val)) val = -3.8;
             if (val < -8.0) val = -8.0;
             if (val > 2.0) val = 2.0;
-            deficitSlider.value = val;
+            e.target.value = val.toFixed(1);
+            inputDeficitSlider.value = val;
             updateSimulation();
         });
 
-        initialInput.addEventListener('input', updateSimulation);
-
-        // Reset dei Dati alla situazione iniziale IEA di Giugno
-        resetBtn.addEventListener('click', () => {
-            initialInput.value = DEFAULT_RESERVES;
-            deficitSlider.value = DEFAULT_DEFICIT;
-            deficitNumber.value = DEFAULT_DEFICIT;
-            updateSimulation();
-        });
-
-        // Gestore del cambio lingua al volo
-        langToggle.addEventListener('click', () => {
-            currentLang = currentLang === 'it' ? 'en' : 'it';
+        // Gestione cambio tipo di riserva e ricalibrazione soglie automatiche
+        selectReserveType.addEventListener('change', (e) => {
+            const isComm = e.target.value === 'commercial';
+            pReserveDesc.innerHTML = TRANSLATIONS[currentLang][isComm ? 'desc-commercial' : 'desc-global'];
             
-            // Aggiorna i pulsanti del toggle
-            if (currentLang === 'it') {
-                langFlag.innerText = "🇬🇧";
-                langText.innerText = "EN";
+            if (isComm) {
+                inputThresholdAlert.value = "7.00";
+                inputThresholdCritical.value = "6.80";
             } else {
-                langFlag.innerText = "🇮🇹";
-                langText.innerText = "IT";
+                inputThresholdAlert.value = "7.30";
+                inputThresholdCritical.value = "7.10";
             }
-
-            // Traduzione dinamica di tutti gli elementi con l'attributo data-i18n
-            document.querySelectorAll('[data-i18n]').forEach(el => {
-                const key = el.getAttribute('data-i18n');
-                if (translations[currentLang][key]) {
-                    el.innerText = translations[currentLang][key];
-                }
-            });
-
-            // Ricalcola e forza l'aggiornamento con la nuova lingua
             updateSimulation();
         });
 
-        // Avvio Iniziale
-        updateSimulation();
+        inputThresholdAlert.addEventListener('input', updateSimulation);
+        inputThresholdCritical.addEventListener('input', updateSimulation);
+
+        // Bottone Reset
+        btnReset.addEventListener('click', () => {
+            inputDeficitNumber.value = -3.8;
+            inputDeficitSlider.value = -3.8;
+            updateSimulation();
+        });
+
+        // Gestione Traduzione al click sulla bandierina
+        btnLangToggle.addEventListener('click', () => {
+            if (currentLang === 'it') {
+                currentLang = 'en';
+                btnLangToggle.innerHTML = `🇮🇹 <span id="langText">IT</span>`;
+            } else {
+                currentLang = 'it';
+                btnLangToggle.innerHTML = `🇬🇧 <span id="langText">EN</span>`;
+            }
+            applyTranslations();
+            updateSimulation();
+        });
+
+        // Inizializzazione della pagina su standard italiano
+        window.onload = () => {
+            applyTranslations();
+            updateSimulation();
+        };
     </script>
 </body>
 </html>
