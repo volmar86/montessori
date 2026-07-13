@@ -51,12 +51,12 @@ jobs:
                         pass
             return data_map
 
-        # Chiamate API (Senza country = Aggregato UE)
+        # API calls (Senza country = Aggregato UE)
         eu_map = fetch_data()
         de_map = fetch_data('DE')
         it_map = fetch_data('IT')
 
-        # Genera la timeline completa richiesta dal tuo HTML
+        # Generate complete timeline required by HTML file
         current = datetime.strptime(start_date, '%Y-%m-%d')
         end_target_dt = datetime.strptime(target_end, '%Y-%m-%d')
         dates_labels = []
@@ -64,7 +64,7 @@ jobs:
             dates_labels.append(current.strftime('%Y-%m-%d'))
             current += timedelta(days=1)
 
-        # Trova le date effettivamente coperte dai dati reali di tutti e tre
+        # FInd the dates really covered by real data of all three sets (EU, IT, DE)
         available_dates = sorted(list(set(eu_map.keys()) & set(de_map.keys()) & set(it_map.keys())))
         
         eu_hist, de_hist, it_hist = [], [], []
@@ -74,7 +74,7 @@ jobs:
                 de_hist.append(de_map[d])
                 it_hist.append(it_map[d])
             else:
-                break # Ci fermiamo appena i dati reali finiscono (inizia la proiezione)
+                break # Stop when real data finish (projection starts)
 
         output = {
             'datesLabels': dates_labels,
@@ -87,7 +87,7 @@ jobs:
             json.dump(output, f, indent=4)
         "
 
-    - name: Salva nel server GitHub
+    - name: Save in GitHub server
       run: |
         git config --global user.name 'AGSI Bot'
         git config --global user.email 'bot@github.com'
