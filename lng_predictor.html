@@ -8,24 +8,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        /* Scrollbar premium per la modalità scura */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-full flex flex-col justify-between">
@@ -42,13 +29,12 @@
                     <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
                         <span class="lang-it">Predittore Stoccaggi Gas Naturale (da dati AGSI)</span> 
                         <span class="lang-en hidden">Natural Gas Storage Predictor (AGSI data)</span> 
-                        <span class="text-xs font-semibold px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-300">v2.1</span>
+                        <span class="text-xs font-semibold px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-300">v2.2</span>
                     </h1>
                     <p class="text-xs text-slate-400 lang-it">Analisi predittiva indipendente per Europa, Germania e Italia basata sui trend storici reali</p>
                     <p class="text-xs text-slate-400 lang-en hidden">Independent predictive analysis for Europe, Germany, and Italy based on actual historical trends</p>
                 </div>
             </div>
-            
             <div class="flex items-center gap-3">
                 <button id="langToggleBtn" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-605 rounded-lg text-slate-200 transition-all font-semibold uppercase flex items-center gap-1.5">
                     🇬🇧 Switch to English
@@ -63,10 +49,10 @@
             <section class="lg:col-span-4 space-y-6">
                 <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl backdrop-blur-sm space-y-6">
                     <div class="border-b border-slate-800 pb-4">
-                        <h2 class="text-lg font-semibold text-white lang-it font-bold">Parametri di Iniezione</h2>
-                        <h2 class="text-lg font-semibold text-white lang-en hidden font-bold">Injection Parameters</h2>
-                        <p class="text-xs text-slate-400 lang-it">Modifica la velocità di accumulo giornaliero simulando fluttuazioni di fornitura in tempo reale.</p>
-                        <p class="text-xs text-slate-400 lang-en hidden font-light">Modify daily storage growth rate simulating supply variations.</p>
+                        <h2 class="text-lg font-semibold text-white lang-it font-bold">Parametri di Scenario</h2>
+                        <h2 class="text-lg font-semibold text-white lang-en hidden font-bold">Scenario Parameters</h2>
+                        <p class="text-xs text-slate-400 lang-it">Modifica la variazione giornaliera. I valori iniziali mostrano la media reale dell'ultimo mese.</p>
+                        <p class="text-xs text-slate-400 lang-en hidden font-light">Modify daily rates. Default values reflect the last month's real average.</p>
                     </div>
 
                     <div class="space-y-2">
@@ -76,11 +62,10 @@
                                 <span class="lang-it">Tasso Europa (EU)</span>
                                 <span class="lang-en hidden">Europe Rate (EU)</span>
                             </span>
-                            <span id="valEU" class="font-mono font-bold text-emerald-400 bg-emerald-950/45 px-2 py-0.5 rounded border border-emerald-500/20">0.27%</span>
+                            <span id="valEU" class="font-mono font-bold text-emerald-400 bg-emerald-950/45 px-2 py-0.5 rounded border border-emerald-500/20">0.00%</span>
                         </div>
-                        <input type="range" id="rateEU" min="0.1" max="0.5" step="0.01" value="0.27" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-emerald-500">
-                        <p class="text-[10px] text-slate-500 italic lang-it">Default medio baseline: 0.27%/giorno</p>
-                        <p class="text-[10px] text-slate-500 italic lang-en hidden">Average baseline: 0.27%/day</p>
+                        <input type="range" id="rateEU" min="-1.0" max="1.0" step="0.01" value="0.00" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-emerald-500">
+                        <p id="lblEUMese" class="text-[10px] text-slate-500 italic">Calcolo media in corso...</p>
                     </div>
 
                     <div class="space-y-2">
@@ -90,11 +75,10 @@
                                 <span class="lang-it">Tasso Germania (DE)</span>
                                 <span class="lang-en hidden">Germany Rate (DE)</span>
                             </span>
-                            <span id="valDE" class="font-mono font-bold text-amber-400 bg-amber-950/45 px-2 py-0.5 rounded border border-amber-500/20">0.26%</span>
+                            <span id="valDE" class="font-mono font-bold text-amber-400 bg-amber-950/45 px-2 py-0.5 rounded border border-amber-500/20">0.00%</span>
                         </div>
-                        <input type="range" id="rateDE" min="0.1" max="0.5" step="0.01" value="0.26" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500">
-                        <p class="text-[10px] text-slate-500 italic lang-it">Default medio baseline: 0.26%/giorno</p>
-                        <p class="text-[10px] text-slate-500 italic lang-en hidden">Average baseline: 0.26%/day</p>
+                        <input type="range" id="rateDE" min="-1.0" max="1.0" step="0.01" value="0.00" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-amber-500">
+                        <p id="lblDEMese" class="text-[10px] text-slate-500 italic">Calcolo media in corso...</p>
                     </div>
 
                     <div class="space-y-2">
@@ -104,22 +88,19 @@
                                 <span class="lang-it">Tasso Italia (IT)</span>
                                 <span class="lang-en hidden">Italy Rate (IT)</span>
                             </span>
-                            <span id="valIT" class="font-mono font-bold text-blue-400 bg-blue-950/45 px-2 py-0.5 rounded border border-blue-500/20">0.28%</span>
+                            <span id="valIT" class="font-mono font-bold text-blue-400 bg-blue-950/45 px-2 py-0.5 rounded border border-blue-500/20">0.00%</span>
                         </div>
-                        <input type="range" id="rateIT" min="0.1" max="0.5" step="0.01" value="0.28" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                        <p class="text-[10px] text-slate-500 italic lang-it">Default medio baseline: 0.28%/giorno</p>
-                        <p class="text-[10px] text-slate-500 italic lang-en hidden">Average baseline: 0.28%/day</p>
+                        <input type="range" id="rateIT" min="-1.0" max="1.0" step="0.01" value="0.00" class="w-full h-1.5 bg-slate-950 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                        <p id="lblITMese" class="text-[10px] text-slate-500 italic">Calcolo media in corso...</p>
                     </div>
 
                     <div class="stats-box bg-slate-950/40 p-4 border border-slate-800 rounded-xl space-y-2.5">
                         <div class="text-[11px] uppercase tracking-wider text-slate-500 font-bold lang-it">Soglie Regolamentari Target</div>
                         <div class="text-[11px] uppercase tracking-wider text-slate-500 font-bold lang-en hidden">Target Reference Thresholds</div>
-                        
                         <div class="flex justify-between text-xs text-slate-300">
                             <span class="flex items-center gap-1.5">
                                 <span class="w-2.5 h-0.5 bg-emerald-500 inline-block"></span>
                                 <span class="lang-it">Target Minimo UE</span>
-                                <span class="lang-en hidden">EU Minimum Target</span>
                             </span>
                             <span class="font-bold text-emerald-400 font-mono">90.00%</span>
                         </div>
@@ -127,16 +108,14 @@
                             <span class="flex items-center gap-1.5">
                                 <span class="w-2.5 h-0.5 bg-rose-500 inline-block"></span>
                                 <span class="lang-it">Soglia Custom Germania</span>
-                                <span class="lang-en hidden">Custom Germany Target</span>
                             </span>
                             <span class="font-bold text-rose-400 font-mono">80.00%</span>
                         </div>
                     </div>
 
                     <div class="p-4 bg-slate-950/50 border border-slate-800 rounded-xl space-y-3">
-                        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold lang-it">Proiezione Livelli a Fine Periodo</div>
-                        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold lang-en hidden">Predicted End-Period Levels</div>
-                        
+                        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold lang-it">Proiezione Livelli a Fine Periodo (1 Nov)</div>
+                        <div class="text-[11px] uppercase tracking-wider text-slate-400 font-bold lang-en hidden">Predicted End-Period Levels (Nov 1)</div>
                         <div class="flex justify-between items-center border-b border-slate-900 pb-2">
                             <span class="text-xs text-slate-400">Europa (EU):</span>
                             <span class="text-xl font-extrabold font-mono transition-colors duration-300" id="predEUText">-%</span>
@@ -159,31 +138,11 @@
                         <div>
                             <h2 class="text-lg font-semibold text-white lang-it">Grafico di Riempimento degli Stoccaggi</h2>
                             <h2 class="text-lg font-semibold text-white lang-en hidden">Storage Inventory Levels Trajectory</h2>
-                            <p class="text-xs text-slate-400 lang-it">Inizio serie storica: Ottobre 2025. La proiezione dinamica (linea tratteggiata) parte dall'ultimo dato reale.</p>
-                            <p class="text-xs text-slate-400 lang-en hidden font-light">Starting Oct 2025. Projections (dashed lines) computed automatically from last available data.</p>
+                            <p class="text-xs text-slate-400 lang-it">Inizio serie storica: Ottobre 2025. La proiezione mobile (tratteggiata) si adegua automaticamente ai dati reali.</p>
                         </div>
                     </div>
-
                     <div class="relative h-[480px] w-full bg-slate-950/40 rounded-xl p-2 border border-slate-800/50">
                         <canvas id="storageChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="bg-blue-950/20 border border-blue-900/30 rounded-2xl p-6">
-                    <h3 class="text-sm font-semibold text-blue-400 mb-2 flex items-center gap-2 font-bold">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span class="lang-it">Metodologia e Contesto di Simulazione</span>
-                        <span class="lang-en hidden">Methodology and Simulation Context</span>
-                    </h3>
-                    <div class="text-xs text-slate-300 leading-relaxed space-y-2">
-                        <p class="lang-it">
-                            I valori di partenza degli slider riflettono la velocità media di iniezione giornaliera registrata nei bacini europei. L'interattività ti consente di simulare colli di bottiglia e variazioni di fornitura causati da logiche di mercato, escalation geopolitiche o fluttuazioni sui flussi globali di LNG diretti alle coste europee.
-                        </p>
-                        <p class="lang-en hidden">
-                            The initial slider configurations match calculated baseline injection rates for European gas basins. The simulation tools allow assessing supply variations or infrastructure restrictions impacting LNG cargo deliveries towards strategic gas hubs.
-                        </p>
                     </div>
                 </div>
             </section>
@@ -193,25 +152,21 @@
     <footer class="border-t border-slate-800 bg-slate-950 py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
             <p class="text-xs text-slate-500">
-                &copy; 2026 Hormuz Strait Gas Monitor. Dati forniti da <a href="https://agsi.gie.eu/" target="_blank" class="text-emerald-400 hover:underline font-semibold">GIE AGSI Platform</a>.
+                &copy; 2026 Hormuz Strait Gas Monitor. Dati reali estratti da <a href="https://agsi.gie.eu/" target="_blank" class="text-emerald-400 hover:underline font-semibold">GIE AGSI Platform</a>.
             </p>
             <p class="text-xs text-slate-500 flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> 
-                <span id="lastUpdateTextIT" class="lang-it">Caricamento dati in corso...</span>
+                <span id="lastUpdateTextIT" class="lang-it">Caricamento dati...</span>
                 <span id="lastUpdateTextEN" class="lang-en hidden font-light">Loading data...</span>
             </p>
         </div>
     </footer>
 
     <script>
-        // Variabili globali caricate dinamicamente dal file data.json esterno
         let datesLabels = [];
-        let euHist = [];
-        let deHist = [];
-        let itHist = [];
+        let euHist = []; let deHist = []; let itHist = [];
         let histLength = 0;
 
-        // Setup degli elementi del DOM
         const sliderEU = document.getElementById('rateEU');
         const sliderDE = document.getElementById('rateDE');
         const sliderIT = document.getElementById('rateIT');
@@ -225,21 +180,17 @@
         const txtIT = document.getElementById('predITText');
 
         const ctx = document.getElementById('storageChart').getContext('2d');
-        let storageChart = null;
-        let currentLang = 'it';
+        let storageChart = null; let currentLang = 'it';
 
-        // Funzione di calcolo proiezioni dinamiche
         function buildProjections() {
             const rEU = parseFloat(sliderEU.value);
             const rDE = parseFloat(sliderDE.value);
             const rIT = parseFloat(sliderIT.value);
 
-            // Aggiorna gli indicatori numerici degli slider
-            valEU.innerText = rEU.toFixed(2) + '%';
-            valDE.innerText = rDE.toFixed(2) + '%';
-            valIT.innerText = rIT.toFixed(2) + '%';
+            valEU.innerText = (rEU >= 0 ? '+' : '') + rEU.toFixed(2) + '%';
+            valDE.innerText = (rDE >= 0 ? '+' : '') + rDE.toFixed(2) + '%';
+            valIT.innerText = (rIT >= 0 ? '+' : '') + rIT.toFixed(2) + '%';
 
-            // Costruiamo array vuoti/null per i primi histLength - 1 elementi
             let euProj = Array(histLength - 1).fill(null);
             let deProj = Array(histLength - 1).fill(null);
             let itProj = Array(histLength - 1).fill(null);
@@ -248,214 +199,112 @@
             const lastDEVal = deHist[histLength - 1];
             const lastITVal = itHist[histLength - 1];
 
-            // La proiezione inizia all'ultimo dato storico per garantire continuità grafica
-            euProj.push(lastEUVal);
-            deProj.push(lastDEVal);
-            itProj.push(lastITVal);
+            euProj.push(lastEUVal); deProj.push(lastDEVal); itProj.push(lastITVal);
 
             const futureLength = datesLabels.length - histLength;
-
             for (let i = 1; i <= futureLength; i++) {
-                euProj.push(Math.min(100, lastEUVal + i * rEU));
-                deProj.push(Math.min(100, lastDEVal + i * rDE));
-                itProj.push(Math.min(100, lastITVal + i * rIT));
+                euProj.push(Math.max(0, Math.min(100, lastEUVal + i * rEU)));
+                deProj.push(Math.max(0, Math.min(100, lastDEVal + i * rDE)));
+                itProj.push(Math.max(0, Math.min(100, lastITVal + i * rIT)));
             }
-
             return { euProj, deProj, itProj };
         }
 
-        // Inizializzazione della libreria Chart.js
         function initChart() {
             const { euProj, deProj, itProj } = buildProjections();
-
             storageChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: datesLabels,
                     datasets: [
-                        {
-                            label: 'EU Reale',
-                            data: [...euHist.slice(0, histLength), ...Array(datesLabels.length - histLength).fill(null)],
-                            borderColor: '#10b981',
-                            borderWidth: 3,
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'DE Reale',
-                            data: [...deHist.slice(0, histLength), ...Array(datesLabels.length - histLength).fill(null)],
-                            borderColor: '#f59e0b',
-                            borderWidth: 3,
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'IT Reale',
-                            data: [...itHist.slice(0, histLength), ...Array(datesLabels.length - histLength).fill(null)],
-                            borderColor: '#3b82f6',
-                            borderWidth: 3,
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'EU Proiezione',
-                            data: euProj,
-                            borderColor: '#10b981',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'DE Proiezione',
-                            data: deProj,
-                            borderColor: '#f59e0b',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'IT Proiezione',
-                            data: itProj,
-                            borderColor: '#3b82f6',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        // Linee Target Orizzontali
-                        {
-                            label: 'Target UE (90%)',
-                            data: Array(datesLabels.length).fill(90),
-                            borderColor: 'rgba(16, 185, 129, 0.4)',
-                            borderWidth: 1.5,
-                            borderDash: [3, 3],
-                            pointRadius: 0,
-                            fill: false
-                        },
-                        {
-                            label: 'Target DE (80%)',
-                            data: Array(datesLabels.length).fill(80),
-                            borderColor: 'rgba(239, 68, 68, 0.4)',
-                            borderWidth: 1.5,
-                            borderDash: [3, 3],
-                            pointRadius: 0,
-                            fill: false
-                        }
+                        { label: 'EU Reale', data: [...euHist, ...Array(datesLabels.length - histLength).fill(null)], borderColor: '#10b981', borderWidth: 3, pointRadius: 0, fill: false },
+                        { label: 'DE Reale', data: [...deHist, ...Array(datesLabels.length - histLength).fill(null)], borderColor: '#f59e0b', borderWidth: 3, pointRadius: 0, fill: false },
+                        { label: 'IT Reale', data: [...itHist, ...Array(datesLabels.length - histLength).fill(null)], borderColor: '#3b82f6', borderWidth: 3, pointRadius: 0, fill: false },
+                        { label: 'EU Proiezione', data: euProj, borderColor: '#10b981', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false },
+                        { label: 'DE Proiezione', data: deProj, borderColor: '#f59e0b', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false },
+                        { label: 'IT Proiezione', data: itProj, borderColor: '#3b82f6', borderWidth: 2, borderDash: [5, 5], pointRadius: 0, fill: false },
+                        { label: 'Target UE (90%)', data: Array(datesLabels.length).fill(90), borderColor: 'rgba(16, 185, 129, 0.3)', borderWidth: 1.5, borderDash: [3, 3], pointRadius: 0, fill: false },
+                        { label: 'Target DE (80%)', data: Array(datesLabels.length).fill(80), borderColor: 'rgba(239, 68, 68, 0.3)', borderWidth: 1.5, borderDash: [3, 3], pointRadius: 0, fill: false }
                     ]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#94a3b8',
-                                boxWidth: 20
-                            }
-                        }
-                    },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 20 } } },
                     scales: {
-                        x: {
-                            grid: {
-                                color: '#1e293b'
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                maxTicksLimit: 12
-                            }
-                        },
-                        y: {
-                            min: 15,
-                            max: 100,
-                            grid: {
-                                color: '#1e293b'
-                            },
-                            ticks: {
-                                color: '#94a3b8',
-                                callback: function(value) {
-                                    return value + '%';
-                                }
-                            }
-                        }
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', maxTicksLimit: 12 } },
+                        y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', callback: v => v + '%' } }
                     }
                 }
             });
         }
 
-        // Aggiornamento dinamico di grafici e testi
         function updateSim() {
             if (!storageChart) return;
-
             const { euProj, deProj, itProj } = buildProjections();
-
-            // Aggiorna i dataset di proiezione nel grafico Chart.js
             storageChart.data.datasets[3].data = euProj;
             storageChart.data.datasets[4].data = deProj;
             storageChart.data.datasets[5].data = itProj;
             storageChart.update();
 
-            const finalEU = parseFloat(euProj[euProj.length - 1]);
-            const finalDE = parseFloat(deProj[deProj.length - 1]);
-            const finalIT = parseFloat(itProj[itProj.length - 1]);
+            const finalEU = euProj[euProj.length - 1];
+            const finalDE = deProj[deProj.length - 1];
+            const finalIT = itProj[itProj.length - 1];
 
             txtEU.innerText = finalEU.toFixed(2) + '%';
             txtDE.innerText = finalDE.toFixed(2) + '%';
             txtIT.innerText = finalIT.toFixed(2) + '%';
 
-            // Colorazione degli allarmi in base al rispetto dei target minimi
-            // Target UE: 90% | Target Germania: 80%
             txtEU.style.color = finalEU < 90 ? '#ef4444' : '#10b981';
             txtDE.style.color = finalDE < 80 ? '#ef4444' : '#f59e0b';
             txtIT.style.color = finalIT < 90 ? '#ef4444' : '#3b82f6';
         }
 
-        // Gestione del multilingua
         function toggleLanguage() {
             const btn = document.getElementById('langToggleBtn');
             if (currentLang === 'it') {
-                currentLang = 'en';
-                btn.innerHTML = '🇮🇹 Passa all\'Italiano';
+                currentLang = 'en'; btn.innerHTML = '🇮🇹 Passa all\'Italiano';
                 document.querySelectorAll('.lang-it').forEach(el => el.classList.add('hidden'));
                 document.querySelectorAll('.lang-en').forEach(el => el.classList.remove('hidden'));
             } else {
-                currentLang = 'it';
-                btn.innerHTML = '🇬🇧 Switch to English';
+                currentLang = 'it'; btn.innerHTML = '🇬🇧 Switch to English';
                 document.querySelectorAll('.lang-en').forEach(el => el.classList.add('hidden'));
                 document.querySelectorAll('.lang-it').forEach(el => el.classList.remove('hidden'));
             }
         }
 
-        // Binding degli eventi
         sliderEU.addEventListener('input', updateSim);
         sliderDE.addEventListener('input', updateSim);
         sliderIT.addEventListener('input', updateSim);
         document.getElementById('langToggleBtn').addEventListener('click', toggleLanguage);
 
-        // Caricamento asincrono dei dati AGSI generati dal Bot Action
         window.onload = function() {
             fetch('./data.json')
-                .then(response => response.json())
+                .then(r => r.json())
                 .then(jsonData => {
                     datesLabels = jsonData.datesLabels;
-                    euHist = jsonData.euHist;
-                    deHist = jsonData.deHist;
-                    itHist = jsonData.itHist;
+                    euHist = jsonData.euHist; deHist = jsonData.deHist; itHist = jsonData.itHist;
                     histLength = euHist.length;
 
-                    // Aggiorna dinamicamente la data dell'ultimo record disponibile nel footer
+                    // Assegna i valori calcolati dinamicamente agli slider come base di partenza
+                    sliderEU.value = jsonData.euDefaultRate;
+                    sliderDE.value = jsonData.deDefaultRate;
+                    sliderIT.value = jsonData.itDefaultRate;
+
+                    // Scrivi i testi descrittivi sotto gli slider
+                    document.getElementById('lblEUMese').innerText = `Media mobile ultimo mese: ${jsonData.euDefaultRate >= 0 ? '+' : ''}${jsonData.euDefaultRate}%/giorno`;
+                    document.getElementById('lblDEMese').innerText = `Media mobile ultimo mese: ${jsonData.deDefaultRate >= 0 ? '+' : ''}${jsonData.deDefaultRate}%/giorno`;
+                    document.getElementById('lblITMese').innerText = `Media mobile ultimo mese: ${jsonData.itDefaultRate >= 0 ? '+' : ''}${jsonData.itDefaultRate}%/giorno`;
+
                     const lastDate = datesLabels[histLength - 1];
                     document.getElementById('lastUpdateTextIT').innerText = "Dati storici consolidati al " + lastDate;
                     document.getElementById('lastUpdateTextEN').innerText = "Consolidated historical data as of " + lastDate;
 
-                    // Avvia la renderizzazione del grafico e della prima simulazione
                     initChart();
                     updateSim();
                 })
                 .catch(err => {
-                    console.error("Errore nel caricamento del file data.json:", err);
-                    document.getElementById('lastUpdateTextIT').innerText = "Errore nel caricamento dati.";
+                    console.error(err);
+                    document.getElementById('lastUpdateTextIT').innerText = "Errore caricamento dati.";
                 });
         };
     </script>
