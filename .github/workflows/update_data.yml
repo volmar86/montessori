@@ -2,8 +2,8 @@ name: Aggiornamento Dati AGSI
 
 on:
   schedule:
-    - cron: '0 6 * * 1' # Gira ogni lunedì alle 06:00 UTC
-  workflow_dispatch: # Ti permette di avviarlo a mano con un click su GitHub
+    - cron: '0 6 * * 1' # Runs each Momnday at 06:00 UTC
+  workflow_dispatch: # Can be run manually with a click on GitHub
 
 jobs:
   update-data:
@@ -17,10 +17,10 @@ jobs:
       with:
         python-version: '3.x'
 
-    - name: Installa Requests
+    - name: Install Requests
       run: pip install requests
 
-    - name: Estrai dati da API AGSI
+    - name: Extract data from API AGSI
       env:
         AGSI_KEY: ${{ secrets.AGSI_API_KEY }}
       run: |
