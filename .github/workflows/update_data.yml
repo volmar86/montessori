@@ -1,0 +1,95 @@
+name: Aggiornamento Dati AGSI
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Gira ogni lunedì alle 06:00 UTC
+  workflow_dispatch: # Ti permette di avviarlo a mano con un click su GitHub
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    - name: Installa Requests
+      run: pip install requests
+
+    - name: Estrai dati da API AGSI
+      env:
+        AGSI_KEY: ${{ secrets.AGSI_API_KEY }}
+      run: |
+        python -c "
+        import os
+        import requests
+        import json
+        from datetime import datetime, timedelta
+
+        headers = {'x-key': os.environ.get('AGSI_KEY')}
+        start_date = '2025-10-01'
+        target_end = '2026-11-01' # Data di fine del tuo grafico attuale
+
+        def fetch_data(country=None):
+            url = f'https://agsi.gie.eu/api?from={start_date}&size=600'
+            if country:
+                url += f'&country={country}'
+            
+            res = requests.get(url, headers=headers).json()
+            data_map = {}
+            for row in res.get('data', []):
+                date_str = row.get('gasDayStart')
+                full_val = row.get('full')
+                if date_str and full_val is not None:
+                    try:
+                        data_map[date_str] = float(full_val)
+                    except ValueError:
+                        pass
+            return data_map
+
+        # Chiamate API (Senza country = Aggregato UE)
+        eu_map = fetch_data()
+        de_map = fetch_data('DE')
+        it_map = fetch_data('IT')
+
+        # Genera la timeline completa richiesta dal tuo HTML
+        current = datetime.strptime(start_date, '%Y-%m-%d')
+        end_target_dt = datetime.strptime(target_end, '%Y-%m-%d')
+        dates_labels = []
+        while current <= end_target_dt:
+            dates_labels.append(current.strftime('%Y-%m-%d'))
+            current += timedelta(days=1)
+
+        # Trova le date effettivamente coperte dai dati reali di tutti e tre
+        available_dates = sorted(list(set(eu_map.keys()) & set(de_map.keys()) & set(it_map.keys())))
+        
+        eu_hist, de_hist, it_hist = [], [], []
+        for d in dates_labels:
+            if d in available_dates:
+                eu_hist.append(eu_map[d])
+                de_hist.append(de_map[d])
+                it_hist.append(it_map[d])
+            else:
+                break # Ci fermiamo appena i dati reali finiscono (inizia la proiezione)
+
+        output = {
+            'datesLabels': dates_labels,
+            'euHist': eu_hist,
+            'deHist': de_hist,
+            'itHist': it_hist
+        }
+
+        with open('data.json', 'w') as f:
+            json.dump(output, f, indent=4)
+        "
+
+    - name: Salva nel server GitHub
+      run: |
+        git config --global user.name 'AGSI Bot'
+        git config --global user.email 'bot@github.com'
+        git add data.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Dati AGSI aggiornati in automatico" && git push)
