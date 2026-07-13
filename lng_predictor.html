@@ -243,6 +243,9 @@
             const futureLength = datesLabels.length - histLength;
             const isSeasonalActive = seasonalToggle.checked;
 
+            // SMART ROLLOVER: Extract the month of the latest available real data point
+            const lastRealMonth = parseInt(datesLabels[histLength - 1].split('-')[1]);
+
             let currentEU = lastEUVal;
             let currentDE = lastDEVal;
             let currentIT = lastITVal;
@@ -255,7 +258,9 @@
                 let currentRateDE = rDE;
                 let currentRateIT = rIT;
 
-                if (isSeasonalActive) {
+                // Seasonal rates only apply if the target month is strictly in the future 
+                // compared to the current real data calendar month
+                if (isSeasonalActive && month > lastRealMonth) {
                     if (month === 9) {
                         currentRateEU = parseFloat(inputSeptEU.value) || 0;
                         currentRateDE = parseFloat(inputSeptDE.value) || 0;
