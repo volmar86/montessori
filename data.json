@@ -398,9 +398,15 @@
         "2026-10-31",
         "2026-11-01"
     ],
-    "euHist": [],
-    "deHist": [],
-    "itHist": [],
+    "euHist": [
+        80.0
+    ],
+    "deHist": [
+        76.31
+    ],
+    "itHist": [
+        92.48
+    ],
     "euDefaultRate": 0.27,
     "deDefaultRate": 0.26,
     "itDefaultRate": 0.28
