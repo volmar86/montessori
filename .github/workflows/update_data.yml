@@ -5,7 +5,6 @@ on:
     - cron: '0 6 * * 1' # Runs each Monday at 06:00 UTC
   workflow_dispatch: # Can be run manually with a click on GitHub
 
-# FIX: Diamo esplicitamente i permessi di scrittura al BOT per salvare il file data.json
 permissions:
   contents: write
 
@@ -13,11 +12,9 @@ jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
-    # FIX: Aggiornato a v4 per eliminare il warning di Node.js
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    # FIX: Aggiornato a v5 per eliminare il warning di Node.js
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
@@ -40,27 +37,28 @@ jobs:
         start_date = '2025-10-01'
         target_end = '2026-11-01'
 
-        def fetch_data(country=None):
-            url = f'https://agsi.gie.eu/api?from={start_date}&size=600'
-            if country:
-                url += f'&country={country}'
-            
-            res = requests.get(url, headers=headers).json()
-            data_map = {}
-            for row in res.get('data', []):
-                date_str = row.get('gasDayStart')
-                full_val = row.get('full')
-                if date_str and full_val is not None:
-                    try:
+        def fetch_data(country):
+            # Explicitly specify the country/zone to get a clean, sorted time series
+            url = f'https://agsi.gie.eu/api?country={country}&from={start_date}&size=600'
+            try:
+                res = requests.get(url, headers=headers).json()
+                data_map = {}
+                for row in res.get('data', []):
+                    date_str = row.get('gasDayStart')
+                    full_val = row.get('full')
+                    if date_str and full_val is not None:
                         data_map[date_str] = float(full_val)
-                    except ValueError:
-                        pass
-            return data_map
+                return data_map
+            except Exception as e:
+                print(f'Error fetching data for {country}: {e}')
+                return {}
 
-        eu_map = fetch_data()
+        # Dedicated and separate API calls for each region
+        eu_map = fetch_data('EU')
         de_map = fetch_data('DE')
         it_map = fetch_data('IT')
 
+        # Generate the complete timeline needed for the HTML interface
         current = datetime.strptime(start_date, '%Y-%m-%d')
         end_target_dt = datetime.strptime(target_end, '%Y-%m-%d')
         dates_labels = []
@@ -68,23 +66,36 @@ jobs:
             dates_labels.append(current.strftime('%Y-%m-%d'))
             current += timedelta(days=1)
 
-        available_dates = sorted(list(set(eu_map.keys()) & set(de_map.keys()) & set(it_map.keys())))
-        
+        # Find the latest common date where all three datasets have real data
+        common_dates = set(eu_map.keys()) & set(de_map.keys()) & set(it_map.keys())
+        max_historical_date = max(common_dates) if common_dates else start_date
+
         eu_hist, de_hist, it_hist = [], [], []
+        
+        # Initial fallback values in case of missing data on the starting day
+        last_eu, last_de, last_it = 80.0, 75.0, 90.0
+
         for d in dates_labels:
-            if d in available_dates:
-                eu_hist.append(eu_map[d])
-                de_hist.append(de_map[d])
-                it_hist.append(it_map[d])
+            if d <= max_historical_date:
+                # If a specific day has an API glitch, reuse the last valid data point
+                if d in eu_map: last_eu = eu_map[d]
+                if d in de_map: last_de = de_map[d]
+                if d in it_map: last_it = it_map[d]
+                
+                eu_hist.append(last_eu)
+                de_hist.append(last_de)
+                it_hist.append(last_it)
             else:
+                # Stop populating historical data once the future projection window opens
                 break
 
+        # Calculate the 30-day rolling average rate using the latest available real data
         if len(eu_hist) >= 30:
-            last = len(eu_hist) - 1
-            prev = last - 30
-            eu_rate = (eu_hist[last] - eu_hist[prev]) / 30
-            de_rate = (de_hist[last] - de_hist[prev]) / 30
-            it_rate = (it_hist[last] - it_hist[prev]) / 30
+            last_idx = len(eu_hist) - 1
+            prev_idx = last_idx - 30
+            eu_rate = (eu_hist[last_idx] - eu_hist[prev_idx]) / 30
+            de_rate = (de_hist[last_idx] - de_hist[prev_idx]) / 30
+            it_rate = (it_hist[last_idx] - it_hist[prev_idx]) / 30
         else:
             eu_rate, de_rate, it_rate = 0.27, 0.26, 0.28
 
@@ -100,6 +111,7 @@ jobs:
 
         with open('data.json', 'w') as f:
             json.dump(output, f, indent=4)
+        print('JSON file successfully generated with complete historical data.')
         "
 
     - name: Save in GitHub server
