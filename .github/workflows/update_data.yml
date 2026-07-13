@@ -1,19 +1,25 @@
-name: AGSI Data Update
+name: Aggiornamento Dati AGSI
 
 on:
   schedule:
     - cron: '0 6 * * 1' # Runs each Monday at 06:00 UTC
   workflow_dispatch: # Can be run manually with a click on GitHub
 
+# FIX: Diamo esplicitamente i permessi di scrittura al BOT per salvare il file data.json
+permissions:
+  contents: write
+
 jobs:
   update-data:
     runs-on: ubuntu-latest
     steps:
+    # FIX: Aggiornato a v4 per eliminare il warning di Node.js
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
+    # FIX: Aggiornato a v5 per eliminare il warning di Node.js
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
 
@@ -32,7 +38,7 @@ jobs:
 
         headers = {'x-key': os.environ.get('AGSI_KEY')}
         start_date = '2025-10-01'
-        target_end = '2026-11-01' # End date of the current chart timeline
+        target_end = '2026-11-01'
 
         def fetch_data(country=None):
             url = f'https://agsi.gie.eu/api?from={start_date}&size=600'
@@ -51,12 +57,10 @@ jobs:
                         pass
             return data_map
 
-        # API calls (Without country = EU Aggregate)
         eu_map = fetch_data()
         de_map = fetch_data('DE')
         it_map = fetch_data('IT')
 
-        # Generate complete timeline required by HTML file
         current = datetime.strptime(start_date, '%Y-%m-%d')
         end_target_dt = datetime.strptime(target_end, '%Y-%m-%d')
         dates_labels = []
@@ -64,7 +68,6 @@ jobs:
             dates_labels.append(current.strftime('%Y-%m-%d'))
             current += timedelta(days=1)
 
-        # Find the dates actually covered by real data across all three sets (EU, IT, DE)
         available_dates = sorted(list(set(eu_map.keys()) & set(de_map.keys()) & set(it_map.keys())))
         
         eu_hist, de_hist, it_hist = [], [], []
@@ -74,9 +77,8 @@ jobs:
                 de_hist.append(de_map[d])
                 it_hist.append(it_map[d])
             else:
-                break # Stop when real data finishes (projection starts)
+                break
 
-        # Calculate 30-day rolling average rate from the latest real data
         if len(eu_hist) >= 30:
             last = len(eu_hist) - 1
             prev = last - 30
@@ -84,7 +86,7 @@ jobs:
             de_rate = (de_hist[last] - de_hist[prev]) / 30
             it_rate = (it_hist[last] - it_hist[prev]) / 30
         else:
-            eu_rate, de_rate, it_rate = 0.27, 0.26, 0.28 # calculated on may and june 2026.
+            eu_rate, de_rate, it_rate = 0.27, 0.26, 0.28
 
         output = {
             'datesLabels': dates_labels,
