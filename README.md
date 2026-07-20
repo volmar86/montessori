@@ -7,6 +7,16 @@ via GitHub Pages — no build step, no framework.
 
 **Live site:** https://volmar86.github.io/dashboards/
 
+## Tech stack
+
+- **HTML5 / CSS3** — layout and styling (Tailwind via CDN)
+- **Vanilla JavaScript** — interactivity, state, simulation logic (no framework)
+- **Chart.js** — data visualisation
+- **Python** — data-fetching and processing script that builds `data.json`
+  (pulls from the AGSI API, computes rolling and seasonal rates)
+- **GitHub Actions** — scheduled workflow that runs the Python script weekly
+- **GitHub Pages** — hosting
+
 ---
 
 ## Dashboards
@@ -46,23 +56,25 @@ Interactive tools intended for use in my Montessori teaching activity.
 
 ## Repository structure
 
+```text
 dashboards/
-├── .github/workflows/ # Scheduled GitHub Action (weekly data update)
-├── dashboards_live/ # Dashboards fed by external, auto-updated data
-│ └── lng-predictor/
-│ ├── index.html # The dashboard
-│ ├── data.json # Live data (refreshed by the Action)
-│ └── data_fallback.json # Frozen backup snapshot
-├── dashboards_static/ # Dashboards with data embedded in the HTML
-├── montessori_dashboards/ # Teaching tools
+├── .github/workflows/          # Scheduled GitHub Action (weekly data update)
+├── dashboards_live/            # Dashboards fed by external, auto-updated data
+│   └── lng-predictor/
+│       ├── index.html          # The dashboard
+│       ├── data.json           # Live data (refreshed by the Action)
+│       └── data_fallback.json  # Frozen backup snapshot
+├── dashboards_static/          # Dashboards with data embedded in the HTML
+├── montessori_dashboards/      # Teaching tools
 └── README.md
+```
 
 ## How the live update works
 
-A GitHub Action runs on a weekly schedule, pulls the latest figures from the
-GIE AGSI API, recomputes the rolling and seasonal rates, and commits the
-refreshed `data.json` back to the repository. The dashboard reads that file
-on load.
+A GitHub Action runs on a weekly schedule, runs a Python script that pulls the
+latest figures from the GIE AGSI API, recomputes the rolling and seasonal
+rates, and commits the refreshed `data.json` back to the repository. The
+dashboard reads that file on load.
 
 ---
 
