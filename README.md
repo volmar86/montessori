@@ -5,7 +5,7 @@ public portfolio piece. Each dashboard is a single, self-contained HTML file
 (vanilla JavaScript + [Chart.js](https://www.chartjs.org/)) and is published
 via GitHub Pages — no build step, no framework.
 
-**Live site:** https://volmar86.github.io/dashboards/
+**Live site:** [volmar86.github.io/dashboards](https://volmar86.github.io/dashboards/)
 
 ## Tech stack
 
@@ -21,7 +21,7 @@ via GitHub Pages — no build step, no framework.
 
 ## Dashboards
 
-### ⛽ Gas Storage Predictor (live data)
+### ⛽ Gas Storage Predictor (live data) — [view live](https://volmar86.github.io/dashboards/dashboards_live/lng-predictor/)
 `dashboards_live/lng-predictor/`
 
 Tracks and projects European natural-gas storage levels — the EU average
@@ -35,22 +35,16 @@ levels.
 - **Resilience:** if the live feed is unavailable, the page falls back to a
   bundled `data_fallback.json` snapshot, so it never renders empty
 
-🔗 https://volmar86.github.io/dashboards/dashboards_live/lng-predictor/
-
-### 🌊 Hormuz Critical-Level Monitor (static data)
+### 🌊 Hormuz Critical-Level Monitor (static data) — [view live](https://volmar86.github.io/dashboards/dashboards_static/)
 `dashboards_static/`
 
 Estimates when gas storage would reach critical thresholds under stress
 scenarios. Data is embedded directly in the page (no external feed).
 
-🔗 https://volmar86.github.io/dashboards/dashboards_static/
-
-### 🎨 Montessori Teaching Dashboards
+### 🎨 Montessori Teaching Dashboards — [view live](https://volmar86.github.io/dashboards/montessori_dashboards/)
 `montessori_dashboards/`
 
 Interactive tools intended for use in my Montessori teaching activity.
-
-🔗 https://volmar86.github.io/dashboards/montessori_dashboards/
 
 ---
 
