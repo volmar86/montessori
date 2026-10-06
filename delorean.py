@@ -1,5 +1,5 @@
 # ============================================================
-#  DELOREAN 88 MPH CHALLENGE – MIT STARTMENÜ & AUDIO
+#  DELOREAN 88 MPH CHALLENGE – MIT STARTMENÜ & PERFEKTEM AUDIO
 #  
 #  Menü-Steuerung:
 #    - ENTER oder Klick auf START: Spiel beginnen
@@ -27,39 +27,79 @@ FARBE_RASEN = "#228B22"
 FARBE_NEON_BLAU = "#00FFFF"
 FARBE_FEUER_ORANGE = "#FF4500"
 
-# ---------- Audio-Steuerung für Windows (ctypes) ----------
-AUDIO_DATEINAME = "bttf midi.mp3"
-musik_aktiv = True  # Musik-Einstellung (An/Aus)
+# ---------- Audio-Dateinamen ----------
+AUDIO_MUSIK = "bttf midi.mp3"
+AUDIO_TIME_CIRCUITS = "time_circuits.mp3"
+AUDIO_80_TO_88 = "80_to_88.mp3"
 
-def hole_audio_pfad():
-    """Ermittelt den absoluten Pfad der Audiodatei im selben Ordner."""
+musik_aktiv = True
+
+def hole_audio_pfad(dateiname):
+    """Ermittelt den Pfad der Audiodatei (im Ordner 'Music' oder direkt)."""
     try:
         skript_ordner = os.path.dirname(os.path.abspath(__file__))
     except Exception:
         skript_ordner = os.getcwd()
-    return os.path.join(skript_ordner, "Music", AUDIO_DATEINAME)
+    pfad_music = os.path.join(skript_ordner, "Music", dateiname)
+    pfad_direkt = os.path.join(skript_ordner, dateiname)
+    return pfad_music if os.path.exists(pfad_music) else pfad_direkt
 
-AUDIO_PFAD = hole_audio_pfad()
-
-def musik_starten():
-    """Startet die MP3-Wiedergabe, falls Musik aktiviert ist."""
+# ---------- MCI Audio Funktionen (Windows) ----------
+def sfx_time_circuits_starten():
+    """Spielt den Time-Circuits Sound im Menü ab."""
     if not musik_aktiv:
         return
     try:
-        musik_stoppen()
-        if os.path.exists(AUDIO_PFAD):
-            befehl_oeffnen = f'open "{AUDIO_PFAD}" alias bgm'
-            res = ctypes.windll.winmm.mciSendStringW(befehl_oeffnen, None, 0, 0)
-            if res == 0:
-                ctypes.windll.winmm.mciSendStringW('play bgm repeat', None, 0, 0)
+        pfad = hole_audio_pfad(AUDIO_TIME_CIRCUITS)
+        if os.path.exists(pfad):
+            ctypes.windll.winmm.mciSendStringW('stop sfx_tc', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('close sfx_tc', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW(f'open "{pfad}" type mpegvideo alias sfx_tc', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('setaudio sfx_tc volume to 1000', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('play sfx_tc', None, 0, 0)
     except Exception as e:
-        print(f"[AUDIO] Fehler: {e}")
+        print(f"[AUDIO SFX TC] Fehler: {e}")
+
+def musik_starten():
+    """Startet die Hintergrundmusik mit reduzierter Lautstärke."""
+    if not musik_aktiv:
+        return
+    try:
+        pfad = hole_audio_pfad(AUDIO_MUSIK)
+        if os.path.exists(pfad):
+            ctypes.windll.winmm.mciSendStringW('stop bgm', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('close bgm', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW(f'open "{pfad}" type mpegvideo alias bgm', None, 0, 0)
+            # Lautstärke der Musik auf 35% reduzieren (350), damit SFX hörbar sind
+            ctypes.windll.winmm.mciSendStringW('setaudio bgm volume to 350', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('play bgm repeat', None, 0, 0)
+    except Exception as e:
+        print(f"[AUDIO BGM] Fehler: {e}")
+
+def sfx_80_to_88_starten():
+    """Spielt den 80-88 MPH Beschleunigungs- & Zeitsprung-Sound ab."""
+    if not musik_aktiv:
+        return
+    try:
+        pfad = hole_audio_pfad(AUDIO_80_TO_88)
+        if os.path.exists(pfad):
+            ctypes.windll.winmm.mciSendStringW('stop sfx80', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('close sfx80', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW(f'open "{pfad}" type mpegvideo alias sfx80', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('setaudio sfx80 volume to 1000', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('play sfx80', None, 0, 0)
+    except Exception as e:
+        print(f"[AUDIO SFX 80] Fehler: {e}")
 
 def musik_stoppen():
-    """Stoppt und schließt den Audio-Player."""
+    """Stoppt alle laufenden Audio-Spuren."""
     try:
         ctypes.windll.winmm.mciSendStringW('stop bgm', None, 0, 0)
         ctypes.windll.winmm.mciSendStringW('close bgm', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW('stop sfx_tc', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW('close sfx_tc', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW('stop sfx80', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW('close sfx80', None, 0, 0)
     except Exception:
         pass
 
@@ -74,7 +114,6 @@ fenster.tracer(0)
 
 # ---------- Pixel-Art / Formen ----------
 def figur_anmelden(name, bild, farben, pixel):
-    """Erstellt aus einem Buchstaben-Raster eine Turtle-Form."""
     form = turtle.Shape("compound")
     hoehe = len(bild)
     breite = len(bild[0])
@@ -95,31 +134,15 @@ def figur_anmelden(name, bild, farben, pixel):
     fenster.register_shape(name, form)
 
 
-# DeLorean Draufsicht (Silber/Cyan)
 DELOREAN_BILD = [
-    "..CCCC..",  # Scheinwerfer
-    ".GGGGGG.",  # Motorhaube
-    "KGGGGGGK",  # Vorderreifen
-    ".GCCGGCP",  # Windschutzscheibe & Haken
-    ".GGGGGG.",  # Dach
-    ".GGGGGG.",  # Türen
-    "KGGGGGGK",  # Hinterreifen
-    ".GGRRGG.",  # Rücklichter
-    "..GSSG..",  # Auspuff
+    "..CCCC..", ".GGGGGG.", "KGGGGGGK", ".GCCGGCP",
+    ".GGGGGG.", ".GGGGGG.", "KGGGGGGK", ".GGRRGG.", "..GSSG.."
 ]
 DELOREAN_FARBEN = {"G": "silver", "C": "cyan", "K": "black", "P": "gold", "R": "crimson", "S": "dimgray"}
 
-# Hindernis-Auto (Dunkelrot)
 AUTO_ROT_BILD = [
-    "..RRRR..",
-    ".RRRRRR.",
-    "KRRRRRRK",
-    ".RCCCCR.",
-    ".RRRRRR.",
-    ".RRRRRR.",
-    "KRRRRRRK",
-    ".RWWWRR.",
-    "..RRRR..",
+    "..RRRR..", ".RRRRRR.", "KRRRRRRK", ".RCCCCR.",
+    ".RRRRRR.", ".RRRRRR.", "KRRRRRRK", ".RWWWRR.", "..RRRR.."
 ]
 AUTO_ROT_FARBEN = {"R": "darkred", "C": "lightblue", "K": "black", "W": "orange"}
 
@@ -134,8 +157,6 @@ strasse_zeichnung.penup()
 
 def welt_zeichnen():
     strasse_zeichnung.clear()
-    
-    # Asphaltierte Straße in der Mitte (400px breit)
     strasse_zeichnung.goto(-200, -300)
     strasse_zeichnung.color(FARBE_STRASSE)
     strasse_zeichnung.begin_fill()
@@ -146,7 +167,6 @@ def welt_zeichnen():
         strasse_zeichnung.left(90)
     strasse_zeichnung.end_fill()
 
-    # Weiße Begrenzungslinien
     strasse_zeichnung.color("white")
     strasse_zeichnung.pensize(5)
     for x_pos in [-195, 195]:
@@ -156,7 +176,6 @@ def welt_zeichnen():
         strasse_zeichnung.penup()
 
 
-# ---------- Straßenstreifen (Animation) ----------
 streifen_liste = []
 for i in range(7):
     s = turtle.Turtle()
@@ -168,7 +187,6 @@ for i in range(7):
     streifen_liste.append(s)
 
 
-# ---------- Feuer-Spuren nach Zeitsprung ----------
 feuer_zeichnung = turtle.Turtle()
 feuer_zeichnung.hideturtle()
 feuer_zeichnung.penup()
@@ -186,7 +204,6 @@ def feuer_spuren_zeichnen(x_pos, y_start):
             feuer_zeichnung.penup()
 
 
-# ---------- Spieler & Objekt-Objekte ----------
 spieler = turtle.Turtle()
 spieler.shape("delorean_top")
 spieler.setheading(90)
@@ -199,41 +216,41 @@ anzeige.hideturtle()
 anzeige.penup()
 
 
-# ---------- Spielzustand & Parameter ----------
 schwierigkeitsgrade = ["Anfänger", "Mittel", "Experte"]
-schwierigkeit_index = 1  # Standard: Mittel
+schwierigkeit_index = 1
 
 geschwindigkeit_mph = 30.0
 ziel_geschwindigkeit = 88.0
 lenkung_x = 0
 gedrueckt = set()
 
-# Status-Werte: "MENÜ", "LÄUFT", "CRASH", "SIEG"
 status = "MENÜ"
 hindernis_timer = 0
 
+# Timing & Audio-Synchronisations-Variablen
+sfx_80_gestartet = False
+start_80_zeit = 0.0
+sieg_zeit = 0.0
+musik_stopp_geplant = False
 
-# ---------- Parameter basierend auf Schwierigkeit ----------
 def hole_schwierigkeits_parameter():
     if schwierigkeitsgrade[schwierigkeit_index] == "Anfänger":
         return 20.0, 0.03, 1.4
     elif schwierigkeitsgrade[schwierigkeit_index] == "Mittel":
         return 30.0, 0.05, 1.0
-    else:  # Experte
+    else:
         return 40.0, 0.08, 0.7
 
 
-# ---------- Menü & UI ----------
 def menue_anzeigen():
     anzeige.clear()
     fenster.bgcolor(FARBE_RASEN)
     welt_zeichnen()
     
-    # Musik direkt beim Öffnen des Menüs starten
     if musik_aktiv:
+        sfx_time_circuits_starten()  # Time-Circuits Sound im Menü
         musik_starten()
     
-    # Menü-Hintergrundbox
     anzeige.goto(-260, -180)
     anzeige.color("black")
     anzeige.begin_fill()
@@ -244,29 +261,24 @@ def menue_anzeigen():
         anzeige.left(90)
     anzeige.end_fill()
     
-    # Titel
     anzeige.goto(0, 140)
     anzeige.color("gold")
     anzeige.write("⚡ DELOREAN 88 MPH ⚡", align="center", font=("Courier", 26, "bold"))
     
-    # Button 1: Start
     anzeige.goto(0, 60)
     anzeige.color("white")
     anzeige.write("[ ENTER / KLICK ]  SPIEL STARTEN", align="center", font=("Courier", 16, "bold"))
     
-    # Button 2: Schwierigkeit
     anzeige.goto(0, 0)
     anzeige.color(FARBE_NEON_BLAU)
     aktuell_diff = schwierigkeitsgrade[schwierigkeit_index]
     anzeige.write(f"[ D ]  SCHWIERIGKEIT: < {aktuell_diff} >", align="center", font=("Courier", 16, "bold"))
     
-    # Button 3: Musik
     anzeige.goto(0, -60)
     musik_str = "AN" if musik_aktiv else "AUS"
     anzeige.color("lightgreen" if musik_aktiv else "crimson")
     anzeige.write(f"[ M ]  MUSIK: < {musik_str} >", align="center", font=("Courier", 16, "bold"))
     
-    # Fußzeile
     anzeige.goto(0, -140)
     anzeige.color("gray")
     anzeige.write("Steuerung: A/D oder Pfeiltasten zum Lenken", align="center", font=("Arial", 12, "italic"))
@@ -283,21 +295,25 @@ def musik_togglen():
     global musik_aktiv
     musik_aktiv = not musik_aktiv
     if musik_aktiv:
+        sfx_time_circuits_starten()
         musik_starten()
     else:
         musik_stoppen()
-        
     if status == "MENÜ":
         menue_anzeigen()
 
 
 def spiel_starten():
-    global status, geschwindigkeit_mph, hindernis_timer
+    global status, geschwindigkeit_mph, hindernis_timer, sfx_80_gestartet, musik_stopp_geplant
+    sfx_80_gestartet = False
+    musik_stopp_geplant = False
     status = "LÄUFT"
     
     start_spd, _, _ = hole_schwierigkeits_parameter()
     geschwindigkeit_mph = start_spd
     hindernis_timer = 0
+    sfx_80_gestartet = False
+    musik_stopp_geplant = False
     
     feuer_zeichnung.clear()
     
@@ -307,25 +323,19 @@ def spiel_starten():
     
     spieler.goto(0, -210)
     spieler.showturtle()
-    
     welt_zeichnen()
 
 
 def tastenklick_klick(x, y):
-    """Ermöglicht das Klicken auf Menüpunkte mit der Maus."""
     if status == "MENÜ":
-        # Klick auf Spiel Starten
         if -200 < x < 200 and 40 < y < 90:
             spiel_starten()
-        # Klick auf Schwierigkeit
         elif -200 < x < 200 and -20 < y < 30:
             schwierigkeit_wechseln()
-        # Klick auf Musik
         elif -200 < x < 200 and -80 < y < -30:
             musik_togglen()
 
 
-# ---------- Tastatur-Eingaben ----------
 def tasten_druck(taste):
     gedrueckt.add(taste)
 
@@ -350,7 +360,6 @@ def hindernis_erzeugen():
     hindernisse.append(h)
 
 
-# ---------- UI-Aktualisierung im Spiel ----------
 def ui_aktualisieren():
     anzeige.clear()
     
@@ -381,17 +390,28 @@ def ui_aktualisieren():
         anzeige.write("Drücke 'R' oder ENTER für Menü", align="center", font=("Courier", 18, "bold"))
 
 
-# ---------- Hauptschleife ----------
 def spiel_schleife():
-    global geschwindigkeit_mph, status, hindernis_timer
+    global geschwindigkeit_mph, status, hindernis_timer, sfx_80_gestartet, start_80_zeit, sieg_zeit, musik_stopp_geplant
     
     if status == "LÄUFT":
         _, beschleunigung, spawn_faktor = hole_schwierigkeits_parameter()
         
-        # Geschwindigkeitszuwachs
-        geschwindigkeit_mph += beschleunigung
-        
-        # Lenkung
+        # Normale Beschleunigung unter 80 MPH
+        if geschwindigkeit_mph < 80.0:
+            geschwindigkeit_mph += beschleunigung
+            if geschwindigkeit_mph >= 80.0:
+                geschwindigkeit_mph = 80.0
+                sfx_80_gestartet = True
+                start_80_zeit = time.time()
+                sfx_80_to_88_starten()  # Sound ab 80 MPH starten
+        else:
+            # Synchronisation 80 bis 88 MPH auf genau 4.3 Sekunden
+            verstrichen = time.time() - start_80_zeit
+            geschwindigkeit_mph = 80.0 + (verstrichen / 4.3) * 8.0
+            if geschwindigkeit_mph >= ziel_geschwindigkeit:
+                geschwindigkeit_mph = ziel_geschwindigkeit
+                
+        # Lenkung & Grenzen
         lenkung_verarbeiten()
         neue_x = spieler.xcor() + lenkung_x
         if neue_x < -170:
@@ -400,14 +420,13 @@ def spiel_schleife():
             neue_x = 170
         spieler.setx(neue_x)
         
-        # Straßenstreifen animieren
         scrolling_tempo = geschwindigkeit_mph / 3.0
         for s in streifen_liste:
             s.sety(s.ycor() - scrolling_tempo)
             if s.ycor() < -300:
                 s.sety(s.ycor() + 600)
         
-        # Hindernisse erzeugen & bewegen
+        # Hindernisse
         hindernis_timer += 1
         spawn_intervall = max(12, int((60 - int(geschwindigkeit_mph / 2)) * spawn_faktor))
         if hindernis_timer >= spawn_intervall:
@@ -418,26 +437,25 @@ def spiel_schleife():
         for h in hindernisse[:]:
             h.sety(h.ycor() - h_tempo)
             
-            # Kollisionsprüfung
+            # Kollision
             dx = abs(h.xcor() - spieler.xcor())
             dy = abs(h.ycor() - spieler.ycor())
             if dx < 35 and dy < 50:
                 status = "CRASH"
                 musik_stoppen()
                 
-            # Hindernis entfernen
             if h.ycor() < -350:
                 h.hideturtle()
                 hindernisse.remove(h)
                 
-        # Gewonnen bei 88 MPH
+        # ⚡ GEWONNEN BEI EXAKT 88 MPH (Sychronisiert mit dem Knall/Blitz)
         if geschwindigkeit_mph >= ziel_geschwindigkeit:
             status = "SIEG"
-            musik_stoppen()
+            sieg_zeit = time.time()  # Zeitpunkt des Zeitsprungs speichern
             
             delorean_x = spieler.xcor()
             delorean_y = spieler.ycor()
-            spieler.hideturtle()
+            spieler.hideturtle()  # Auto verschwindet
             
             # Blitz-Effekt
             fenster.bgcolor("white")
@@ -449,8 +467,20 @@ def spiel_schleife():
             fenster.bgcolor(FARBE_RASEN)
             
             feuer_spuren_zeichnen(delorean_x, delorean_y)
+        elif status == "SIEG":
+            # Musik stoppt 6 Sekunden nach dem Zeitsprung (nach dem Feuer-Sound)
+            if not musik_stopp_geplant and (time.time() - sieg_zeit) >= 6.0:
+                musik_stopp_geplant = True
+                musik_stoppen()
             
         ui_aktualisieren()
+
+    elif status == "SIEG":
+        # Nach dem Sieg läuft das Feuer-Audio weiter.
+        # Nach ca. 6 Sekunden (Ende des 80_to_88.mp3 Feuerteils) wird die Musik gestoppt.
+        if not musik_stopp_geplant and (time.time() - sieg_zeit) >= 6.0:
+            musik_stopp_geplant = True
+            musik_stoppen()
         
     fenster.update()
     fenster.ontimer(spiel_schleife, FPS_TAKT)
@@ -465,7 +495,7 @@ def neustart_oder_menue():
         spiel_starten()
 
 
-# ---------- Tastatur- & Mausevents ----------
+# ---------- Key bindings ----------
 fenster.onkeypress(lambda: tasten_druck("links"), "a")
 fenster.onkeypress(lambda: tasten_druck("links"), "A")
 fenster.onkeypress(lambda: tasten_druck("links"), "Left")
@@ -480,7 +510,6 @@ fenster.onkeyrelease(lambda: tasten_freigabe("rechts"), "d")
 fenster.onkeyrelease(lambda: tasten_freigabe("rechts"), "D")
 fenster.onkeyrelease(lambda: tasten_freigabe("rechts"), "Right")
 
-# Menü-Tasten
 fenster.onkeypress(schwierigkeit_wechseln, "d")
 fenster.onkeypress(schwierigkeit_wechseln, "D")
 fenster.onkeypress(musik_togglen, "m")
@@ -490,12 +519,10 @@ fenster.onkeypress(neustart_oder_menue, "r")
 fenster.onkeypress(neustart_oder_menue, "R")
 fenster.onkeypress(neustart_oder_menue, "Return")
 
-# Mausevents
 fenster.onscreenclick(tastenklick_klick)
 
 fenster.listen()
 
-# Start
 menue_anzeigen()
 spiel_schleife()
 turtle.done()
