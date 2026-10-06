@@ -37,7 +37,7 @@ def hole_audio_pfad():
         skript_ordner = os.path.dirname(os.path.abspath(__file__))
     except Exception:
         skript_ordner = os.getcwd()
-    return os.path.join(skript_ordner, AUDIO_DATEINAME)
+    return os.path.join(skript_ordner, "Music", AUDIO_DATEINAME)
 
 AUDIO_PFAD = hole_audio_pfad()
 
