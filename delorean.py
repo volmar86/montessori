@@ -219,7 +219,7 @@ anzeige.penup()
 schwierigkeitsgrade = ["Anfänger", "Mittel", "Experte"]
 schwierigkeit_index = 1
 
-geschwindigkeit_mph = 30.0
+geschwindigkeit_mph = 25.0
 ziel_geschwindigkeit = 88.0
 lenkung_x = 0
 gedrueckt = set()
@@ -235,9 +235,9 @@ musik_stopp_geplant = False
 
 def hole_schwierigkeits_parameter():
     if schwierigkeitsgrade[schwierigkeit_index] == "Anfänger":
-        return 20.0, 0.03, 1.4
+        return 15.0, 0.03, 1.4
     elif schwierigkeitsgrade[schwierigkeit_index] == "Mittel":
-        return 30.0, 0.05, 1.0
+        return 25.0, 0.05, 1.0
     else:
         return 40.0, 0.08, 0.7
 
@@ -246,10 +246,6 @@ def menue_anzeigen():
     anzeige.clear()
     fenster.bgcolor(FARBE_RASEN)
     welt_zeichnen()
-    
-    if musik_aktiv:
-        sfx_time_circuits_starten()  # Time-Circuits Sound im Menü
-        musik_starten()
     
     anzeige.goto(-260, -180)
     anzeige.color("black")
@@ -490,6 +486,9 @@ def neustart_oder_menue():
     global status
     if status in ["CRASH", "SIEG"]:
         status = "MENÜ"
+        if musik_aktiv:
+            sfx_time_circuits_starten()  # Sound im Menü nach Spielende
+            musik_starten()
         menue_anzeigen()
     elif status == "MENÜ":
         spiel_starten()
@@ -522,6 +521,11 @@ fenster.onkeypress(neustart_oder_menue, "Return")
 fenster.onscreenclick(tastenklick_klick)
 
 fenster.listen()
+
+# Start
+if musik_aktiv:
+    sfx_time_circuits_starten()  # Start-Sound beim Öffnen
+    musik_starten()              # Musik starten
 
 menue_anzeigen()
 spiel_schleife()
