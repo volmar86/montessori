@@ -16,6 +16,7 @@ import random
 import time
 import os
 import sys
+import math
 
 # ====== EINSTELLUNGEN ======
 BREITE = 800
@@ -224,6 +225,103 @@ auto_rot_img = schmaler_machen(erstelle_auto_rot_surface())
 AUTO_HALB = delorean_img.get_width() // 2              # halbe Bildbreite (zum Zentrieren)
 TREFFER_BREITE = round(36 * AUTO_BREITE_FAKTOR)        # Breite der Kollisionsbox
 RAND = 30                                              # Abstand Auto-Mitte zum Straßenrand
+
+
+# ---------- Tachometer (links neben der Straße) ----------
+# Nachgebaut nach dem Film-Tacho: weiße mph-Zahlen 15 bis 95 (55 rot, ganz oben),
+# innen blaue km/h-Zahlen, unten eine Digitalanzeige.
+TACHO_X = STRASSE_LINKS // 2      # Mitte des Tachos: mitten im linken Rasen (90)
+TACHO_Y = HOEHE - 95              # ... und unten (505)
+TACHO_RADIUS = 80
+TACHO_ANFANG = 15                 # kleinste Zahl (unten links)
+TACHO_MAX = 95                    # größte Zahl (unten rechts). Im Film: extra gebauter Tacho bis 95 mph
+TACHO_OBEN = 55                   # diese Zahl steht ganz oben
+TACHO_GRAD_PRO_MPH = 3.05                                   # so viele Grad dreht der Zeiger pro mph
+TACHO_ZAHLEN = [15, 25, 35, 45, 55, 65, 75, 85, 95]         # weiße mph-Zahlen
+TACHO_ROTE_ZAHLEN = [55]                                    # diese Zahlen sind rot
+TACHO_KMH = [40, 60, 80, 100, 120, 140, 160]                # blaue km/h-Zahlen innen
+FARBE_KMH = (122, 167, 224)
+
+font_tacho = pygame.font.SysFont("Arial", 13, bold=True)
+font_kmh = pygame.font.SysFont("Arial", 9, bold=True)
+font_tacho_klein = pygame.font.SysFont("Arial", 9)
+font_mph = pygame.font.SysFont("Arial", 12, bold=True)
+font_digital = pygame.font.SysFont("Courier", 22, bold=True)
+
+
+def tacho_winkel(mph, begrenzen=True):
+    """Rechnet mph in einen Winkel um: 55 mph = oben (90°), kleiner = weiter links, größer = weiter rechts."""
+    if begrenzen:
+        mph = max(TACHO_ANFANG - 5, min(mph, TACHO_MAX + 4))   # der Zeiger bleibt an den Enden stehen
+    return 90 - (mph - TACHO_OBEN) * TACHO_GRAD_PRO_MPH
+
+
+def punkt_auf_kreis(mitte_x, mitte_y, winkel, abstand):
+    """Ein Punkt in Richtung 'winkel'. Achtung: in pygame zeigt y nach UNTEN, deshalb minus."""
+    w = math.radians(winkel)
+    return mitte_x + abstand * math.cos(w), mitte_y - abstand * math.sin(w)
+
+
+def erstelle_tacho_surface():
+    """Zeichnet das Zifferblatt EINMAL auf ein eigenes Bild (das ist schneller als jedes Mal neu)."""
+    groesse = TACHO_RADIUS * 2 + 10
+    surf = pygame.Surface((groesse, groesse), pygame.SRCALPHA)
+    m = groesse // 2                                       # Mitte auf diesem kleinen Bild
+    pygame.draw.circle(surf, (192, 192, 192), (m, m), TACHO_RADIUS + 4)   # silberner Rand
+    pygame.draw.circle(surf, (17, 17, 17), (m, m), TACHO_RADIUS)         # dunkle Scheibe
+
+    # weiße Striche alle 5 mph: lang bei den Zahlen (15, 25 ...), kurz dazwischen (20, 30 ...)
+    for mph in range(TACHO_ANFANG, TACHO_MAX + 1, 5):
+        w = tacho_winkel(mph)
+        lang = mph in TACHO_ZAHLEN
+        innen = punkt_auf_kreis(m, m, w, TACHO_RADIUS - (13 if lang else 8))
+        aussen = punkt_auf_kreis(m, m, w, TACHO_RADIUS - 3)
+        pygame.draw.line(surf, (255, 255, 255), innen, aussen, 4 if lang else 2)
+
+    # weiße (und rote) mph-Zahlen
+    for mph in TACHO_ZAHLEN:
+        x, y = punkt_auf_kreis(m, m, tacho_winkel(mph), TACHO_RADIUS - 25)
+        farbe = (255, 40, 40) if mph in TACHO_ROTE_ZAHLEN else (255, 255, 255)
+        zahl = font_tacho.render(str(mph), True, farbe)
+        surf.blit(zahl, zahl.get_rect(center=(x, y)))
+
+    # blaue km/h-Zahlen mit kleinem Quadrat (1 mph = 1.609 km/h)
+    for kmh in TACHO_KMH:
+        w = tacho_winkel(kmh / 1.609344, begrenzen=False)
+        qx, qy = punkt_auf_kreis(m, m, w, TACHO_RADIUS - 16)
+        pygame.draw.rect(surf, FARBE_KMH, (qx - 2, qy - 2, 5, 5))
+        x, y = punkt_auf_kreis(m, m, w, TACHO_RADIUS - 40)
+        zahl = font_kmh.render(str(kmh), True, FARBE_KMH)
+        surf.blit(zahl, zahl.get_rect(center=(x, y)))
+
+    # Beschriftung unten: km/h klein, MPH groß
+    kmh_text = font_tacho_klein.render("km/h", True, (140, 140, 140))
+    surf.blit(kmh_text, kmh_text.get_rect(center=(m, m + 21)))
+    mph_text = font_mph.render("MPH", True, (255, 255, 255))
+    surf.blit(mph_text, mph_text.get_rect(center=(m, m + 33)))
+
+    # Rahmen der Digitalanzeige (unten im Tacho)
+    rahmen = pygame.Rect(0, 0, 58, 26)
+    rahmen.center = (m, m + 56)
+    pygame.draw.rect(surf, (26, 0, 0), rahmen)
+    pygame.draw.rect(surf, (105, 105, 105), rahmen, 2)
+    return surf
+
+
+tacho_img = erstelle_tacho_surface()
+
+
+def tacho_zeichnen(mph):
+    """Zifferblatt, Zeiger und Digitalanzeige auf den Bildschirm."""
+    fenster.blit(tacho_img, tacho_img.get_rect(center=(TACHO_X, TACHO_Y)))
+    w = tacho_winkel(mph)
+    hinten = punkt_auf_kreis(TACHO_X, TACHO_Y, w + 180, 12)      # kurzes Stück hinter der Mitte
+    spitze = punkt_auf_kreis(TACHO_X, TACHO_Y, w, TACHO_RADIUS - 12)
+    pygame.draw.line(fenster, (255, 69, 0), hinten, spitze, 3)
+    pygame.draw.circle(fenster, (192, 192, 192), (TACHO_X, TACHO_Y), 6)   # Kappe in der Mitte
+
+    zahl = font_digital.render(str(int(mph)), True, (255, 69, 0))     # int(): 87.9 zeigt 87, erst bei 88 steht 88
+    fenster.blit(zahl, zahl.get_rect(center=(TACHO_X, TACHO_Y + 56)))
 
 
 # ---------- Spielzustand & Parameter ----------
@@ -443,17 +541,19 @@ while laufend:
     if status != "SIEG":
         fenster.blit(delorean_img, (spieler_x - AUTO_HALB, spieler_y - 40))
         
+    # Tacho (im Spiel, nach Crash und nach Sieg – nicht im Menü)
+    if status != "MENÜ":
+        tacho_zeichnen(min(geschwindigkeit_mph, ziel_geschwindigkeit))
+
     # UI Overhead Display (während des Spiels)
     if status == "LÄUFT":
-        spd_val = min(geschwindigkeit_mph, ziel_geschwindigkeit)
-        txt_spd = font_ui.render(f"SPEED: {spd_val:.1f} MPH", True, FARBE_NEON_BLAU)
         txt_diff = font_ui.render(f"MODUS: {schwierigkeitsgrade[schwierigkeit_index]}", True, FARBE_WEISS)
-        for txt, pos in [(txt_spd, (20, 20)), (txt_diff, (BREITE - txt_diff.get_width() - 20, 20))]:
-            # Halbtransparenter Hintergrund, damit der Text über dem Straßenrand lesbar bleibt
-            hintergrund = pygame.Surface((txt.get_width() + 12, txt.get_height() + 6), pygame.SRCALPHA)
-            hintergrund.fill((0, 0, 0, 150))
-            fenster.blit(hintergrund, (pos[0] - 6, pos[1] - 3))
-            fenster.blit(txt, pos)
+        pos = (BREITE - txt_diff.get_width() - 20, 20)
+        # Halbtransparenter Hintergrund, damit der Text über dem Straßenrand lesbar bleibt
+        hintergrund = pygame.Surface((txt_diff.get_width() + 12, txt_diff.get_height() + 6), pygame.SRCALPHA)
+        hintergrund.fill((0, 0, 0, 150))
+        fenster.blit(hintergrund, (pos[0] - 6, pos[1] - 3))
+        fenster.blit(txt_diff, pos)
         
     # Menü Overlay
     elif status == "MENÜ":
