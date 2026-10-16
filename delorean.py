@@ -16,6 +16,7 @@ import random
 import time
 import os
 import ctypes
+import math
 
 # ====== EINSTELLUNGEN ======
 BREITE = 800
@@ -36,8 +37,8 @@ MUSIK_LAUTSTAERKE = 350   # normale Lautstärke der Musik (MCI: 0 bis 1000)
 FADE_CRASH = 5.0          # so viele Sekunden wird die Musik nach einem Crash leiser
 FADE_SIEG = 10.0          # ... und nach dem Sieg
 FADE_TASTE_M = 1.0        # ... und wenn man mit M die Musik ausschaltet
-TRAVEL_ENDE_MS = 350      # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
-AUDIO_DEBUG = True        # True = Audio-Meldungen in der Shell anzeigen (zum Fehlersuchen)
+TRAVEL_ENDE_MS = 400      # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
+AUDIO_DEBUG = False       # True = Audio-Meldungen in der Shell anzeigen (zum Fehlersuchen)
 
 musik_aktiv = True
 musik_laeuft = False      # Boolean-Flag: Ist die Hintergrundmusik geöffnet und gestartet?
@@ -327,6 +328,127 @@ anzeige.hideturtle()
 anzeige.penup()
 
 
+# ---------- Tachometer (links neben der Straße) ----------
+# Nachgebaut nach dem Film-Tacho: weiße mph-Zahlen 15 bis 95 (55 rot, ganz oben),
+# innen blaue km/h-Zahlen, unten eine Digitalanzeige.
+TACHO_X = -300        # Mitte des Tachos
+TACHO_Y = -195
+TACHO_RADIUS = 85
+TACHO_ANFANG = 15     # kleinste Zahl (unten links)
+TACHO_MAX = 95        # größte Zahl (unten rechts). Im Film: extra gebauter Tacho bis 95 mph
+                      # (der Serien-Tacho der DeLorean ging wegen eines US-Gesetzes von 1979 nur bis 85)
+TACHO_OBEN = 55       # diese Zahl steht ganz oben
+TACHO_GRAD_PRO_MPH = 3.05                                   # so viele Grad dreht der Zeiger pro mph
+TACHO_ZAHLEN = [15, 25, 35, 45, 55, 65, 75, 85, 95]         # weiße mph-Zahlen
+TACHO_ROTE_ZAHLEN = [55]                                    # diese Zahlen sind rot
+TACHO_KMH = [40, 60, 80, 100, 120, 140, 160]                # blaue km/h-Zahlen innen
+FARBE_KMH = "#7aa7e0"
+
+tacho_blatt = turtle.Turtle()     # Zifferblatt: wird nur einmal pro Spiel gezeichnet
+tacho_zeiger = turtle.Turtle()    # Zeiger: wird in jedem Bild neu gezeichnet
+tacho_digital = turtle.Turtle()   # Digitalanzeige: Zahl in jedem Bild neu
+for t in (tacho_blatt, tacho_zeiger, tacho_digital):
+    t.hideturtle()
+    t.penup()
+
+
+def tacho_winkel(mph, begrenzen=True):
+    """Rechnet mph in einen Winkel um: 55 mph = oben (90°), kleiner = weiter links, größer = weiter rechts."""
+    if begrenzen:
+        mph = max(TACHO_ANFANG - 5, min(mph, TACHO_MAX + 4))   # der Zeiger bleibt an den Enden stehen
+    return 90 - (mph - TACHO_OBEN) * TACHO_GRAD_PRO_MPH
+
+
+def punkt_auf_kreis(winkel, abstand):
+    """Ein Punkt, der vom Tacho-Mittelpunkt aus in Richtung 'winkel' so weit weg ist."""
+    w = math.radians(winkel)
+    return TACHO_X + abstand * math.cos(w), TACHO_Y + abstand * math.sin(w)
+
+
+def tacho_zeichnen():
+    """Zeichnet das Zifferblatt: Scheibe, Striche, Zahlen, Rahmen der Digitalanzeige."""
+    t = tacho_blatt
+    t.clear()
+    t.goto(TACHO_X, TACHO_Y)
+    t.dot(TACHO_RADIUS * 2 + 8, "silver")      # Rand
+    t.dot(TACHO_RADIUS * 2, "#111111")         # Scheibe
+
+    # weiße Striche alle 5 mph: lang bei den Zahlen (15, 25 ...), kurz dazwischen (20, 30 ...)
+    for mph in range(TACHO_ANFANG, TACHO_MAX + 1, 5):
+        w = tacho_winkel(mph)
+        lang = mph in TACHO_ZAHLEN
+        t.color("white")
+        t.pensize(4 if lang else 2)
+        t.goto(punkt_auf_kreis(w, TACHO_RADIUS - (14 if lang else 9)))
+        t.pendown()
+        t.goto(punkt_auf_kreis(w, TACHO_RADIUS - 3))
+        t.penup()
+
+    # weiße (und rote) mph-Zahlen
+    for mph in TACHO_ZAHLEN:
+        x, y = punkt_auf_kreis(tacho_winkel(mph), TACHO_RADIUS - 26)
+        t.goto(x, y - 7)                       # write() schreibt über dem Punkt: etwas tiefer setzen
+        t.color("red" if mph in TACHO_ROTE_ZAHLEN else "white")
+        t.write(str(mph), align="center", font=("Arial", 10, "bold"))
+
+    # blaue km/h-Zahlen mit kleinem Quadrat (1 mph = 1.609 km/h)
+    for kmh in TACHO_KMH:
+        w = tacho_winkel(kmh / 1.609344, begrenzen=False)
+        t.goto(punkt_auf_kreis(w, TACHO_RADIUS - 17))
+        t.dot(5, FARBE_KMH)
+        x, y = punkt_auf_kreis(w, TACHO_RADIUS - 43)
+        t.goto(x, y - 5)
+        t.color(FARBE_KMH)
+        t.write(str(kmh), align="center", font=("Arial", 7, "bold"))
+
+    # Beschriftung unten: km/h klein, MPH groß
+    t.goto(TACHO_X, TACHO_Y - 25)
+    t.color("gray")
+    t.write("km/h", align="center", font=("Arial", 7, "normal"))
+    t.goto(TACHO_X, TACHO_Y - 37)
+    t.color("white")
+    t.write("MPH", align="center", font=("Arial", 9, "bold"))
+
+    # Rahmen der Digitalanzeige (unten im Tacho)
+    t.goto(TACHO_X - 30, TACHO_Y - 66)
+    t.color("dimgray", "#1a0000")
+    t.pensize(2)
+    t.pendown()
+    t.begin_fill()
+    for seite in (60, 26, 60, 26):
+        t.forward(seite)
+        t.left(90)
+    t.end_fill()
+    t.penup()
+
+
+def tacho_anzeigen(mph):
+    """Zeiger und Digitalanzeige auf die aktuelle Geschwindigkeit stellen."""
+    w = tacho_winkel(mph)
+    z = tacho_zeiger
+    z.clear()
+    z.color("orangered")
+    z.pensize(3)
+    z.goto(punkt_auf_kreis(w + 180, 12))       # kurzes Stück hinter der Mitte
+    z.pendown()
+    z.goto(punkt_auf_kreis(w, TACHO_RADIUS - 12))
+    z.penup()
+    z.goto(TACHO_X, TACHO_Y)
+    z.dot(12, "silver")                        # Kappe in der Mitte
+
+    d = tacho_digital
+    d.clear()
+    d.goto(TACHO_X, TACHO_Y - 64)
+    d.color("orangered")
+    d.write(str(int(mph)), align="center", font=("Courier", 16, "bold"))   # int(): 87.9 zeigt 87, erst bei 88 steht 88
+
+
+def tacho_verstecken():
+    tacho_blatt.clear()
+    tacho_zeiger.clear()
+    tacho_digital.clear()
+
+
 schwierigkeitsgrade = ["Anfänger", "Mittel", "Experte"]
 schwierigkeit_index = 1
 
@@ -358,6 +480,7 @@ def menue_anzeigen():
     anzeige.clear()
     fenster.bgcolor(FARBE_RASEN)
     welt_zeichnen()
+    tacho_verstecken()                 # im Menü kein Tacho (die Menü-Box würde ihn überdecken)
     
     anzeige.goto(-260, -180)
     anzeige.color("black")
@@ -438,6 +561,8 @@ def spiel_starten():
     spieler.goto(0, -210)
     spieler.showturtle()
     welt_zeichnen()
+    tacho_zeichnen()
+    tacho_anzeigen(geschwindigkeit_mph)
 
 
 def tastenklick_klick(x, y):
@@ -476,13 +601,9 @@ def hindernis_erzeugen():
 
 def ui_aktualisieren():
     anzeige.clear()
-    
+    tacho_anzeigen(min(geschwindigkeit_mph, ziel_geschwindigkeit))   # auch bei CRASH/SIEG: zeigt die letzte Geschwindigkeit
+
     if status == "LÄUFT":
-        anzeige.color(FARBE_NEON_BLAU)
-        anzeige.goto(-360, 250)
-        current_spd = min(geschwindigkeit_mph, ziel_geschwindigkeit)
-        anzeige.write(f"SPEED: {current_spd:.1f} MPH", align="left", font=("Courier", 22, "bold"))
-        
         anzeige.goto(360, 250)
         anzeige.color("white")
         anzeige.write(f"MODUS: {schwierigkeitsgrade[schwierigkeit_index]}", align="right", font=("Courier", 14, "bold"))
