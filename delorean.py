@@ -32,9 +32,27 @@ AUDIO_MUSIK = "bttf midi.mp3"
 AUDIO_TIME_CIRCUITS = "time_circuits.mp3"
 AUDIO_TRAVEL = "80to88.mp3"
 
+MUSIK_LAUTSTAERKE = 350   # normale Lautstärke der Musik (MCI: 0 bis 1000)
+FADE_CRASH = 5.0          # so viele Sekunden wird die Musik nach einem Crash leiser
+FADE_SIEG = 10.0          # ... und nach dem Sieg
+FADE_TASTE_M = 1.0        # ... und wenn man mit M die Musik ausschaltet
+TRAVEL_ENDE_MS = 350      # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
+AUDIO_DEBUG = True        # True = Audio-Meldungen in der Shell anzeigen (zum Fehlersuchen)
+
 musik_aktiv = True
-musik_laeuft = False  # Boolean-Flag: Läuft die Hintergrundmusik bereits?
-letzter_vol_wert = 350  # Lautstärke-Tracker für stufenloses Fade-Out
+musik_laeuft = False      # Boolean-Flag: Ist die Hintergrundmusik geöffnet und gestartet?
+musik_pausiert = False    # True = angehalten, läuft beim nächsten Start an derselben Stelle weiter
+fade_start = None         # Zeitpunkt, an dem das Ausblenden begann (None = kein Ausblenden)
+fade_dauer = FADE_CRASH
+letzter_vol_wert = MUSIK_LAUTSTAERKE  # Lautstärke-Tracker für stufenloses Fade-Out
+sfx_travel_offen = False  # True = der Zeitsprung-Sound ist in MCI geöffnet
+sfx_travel_laenge = 0     # Länge von 80to88 in Millisekunden (0 = unbekannt)
+audio_startzeit = time.time()
+
+def audio_meldung(text):
+    """Schreibt eine Audio-Meldung mit Uhrzeit in die Shell (nur wenn AUDIO_DEBUG = True)."""
+    if AUDIO_DEBUG:
+        print(f"[AUDIO {time.time() - audio_startzeit:7.2f} s] {text}")
 
 def hole_audio_pfad(dateiname):
     """Ermittelt den Pfad der Audiodatei (sucht in 'Music' und im Hauptordner)."""
@@ -78,14 +96,20 @@ def sfx_time_circuits_starten():
         print(f"[AUDIO SFX TC] Fehler: {e}")
 
 def musik_starten():
-    global letzter_vol_wert, musik_laeuft
+    """Startet die Musik – oder lässt sie dort weiterlaufen, wo sie angehalten wurde."""
+    global letzter_vol_wert, musik_laeuft, musik_pausiert, fade_start
     if not musik_aktiv:
         return
+    fade_start = None                    # ein laufendes Ausblenden abbrechen
     try:
-        # Wenn die Musik bereits läuft, nur Lautstärke zurücksetzen (nicht neu starten!)
+        # Wenn die Musik schon geöffnet ist: nicht neu starten!
         if musik_laeuft:
-            ctypes.windll.winmm.mciSendStringW('setaudio bgm volume to 350', None, 0, 0)
-            letzter_vol_wert = 350
+            ctypes.windll.winmm.mciSendStringW(f'setaudio bgm volume to {MUSIK_LAUTSTAERKE}', None, 0, 0)
+            letzter_vol_wert = MUSIK_LAUTSTAERKE
+            if musik_pausiert:
+                # "play" ohne "from" spielt an der aktuellen Stelle weiter
+                ctypes.windll.winmm.mciSendStringW('play bgm repeat', None, 0, 0)
+                musik_pausiert = False
             return
 
         pfad = hole_audio_pfad(AUDIO_MUSIK)
@@ -93,15 +117,35 @@ def musik_starten():
             ctypes.windll.winmm.mciSendStringW('stop bgm', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW('close bgm', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW(f'open "{pfad}" type mpegvideo alias bgm', None, 0, 0)
-            ctypes.windll.winmm.mciSendStringW('setaudio bgm volume to 350', None, 0, 0)
-            ctypes.windll.winmm.mciSendStringW('play bgm repeat', None, 0, 0)
-            letzter_vol_wert = 350  # Lautstärke-Tracker zurücksetzen
-            musik_laeuft = True     # Flag auf True setzen
+            ctypes.windll.winmm.mciSendStringW(f'setaudio bgm volume to {MUSIK_LAUTSTAERKE}', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('play bgm repeat', None, 0, 0)  # Endlosschleife, von vorne
+            letzter_vol_wert = MUSIK_LAUTSTAERKE  # Lautstärke-Tracker zurücksetzen
+            musik_laeuft = True                   # Flag auf True setzen
     except Exception as e:
         print(f"[AUDIO BGM] Fehler: {e}")
 
+def mci_frage(befehl):
+    """Schickt eine Frage an MCI (z.B. 'status sfxtravel mode') und gibt die Antwort als Text zurück.
+    (Bei einem Fehler kommt ein leerer Text zurück.)"""
+    try:
+        antwort = ctypes.create_unicode_buffer(64)
+        ctypes.windll.winmm.mciSendStringW(befehl, antwort, 64, 0)
+        return antwort.value
+    except Exception:
+        return ""
+
+def mci_modus(alias):
+    """Was macht ein Sound gerade? 'playing', 'stopped', 'paused' ..."""
+    return mci_frage(f'status {alias} mode')
+
+def mci_zahl(befehl):
+    """Wie mci_frage, aber als Zahl (z.B. Position in Millisekunden). -1 = unbekannt."""
+    text = mci_frage(befehl)
+    return int(text) if text.isdigit() else -1
+
 def sfx_travel_starten():
     """Spielt den Beschleunigungs- & Zeitsprung-Sound ab."""
+    global sfx_travel_offen, sfx_travel_laenge
     if not musik_aktiv:
         return
     try:
@@ -110,24 +154,65 @@ def sfx_travel_starten():
             ctypes.windll.winmm.mciSendStringW('stop sfxtravel', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW('close sfxtravel', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW(f'open "{pfad}" type mpegvideo alias sfxtravel', None, 0, 0)
+            ctypes.windll.winmm.mciSendStringW('set sfxtravel time format milliseconds', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW('setaudio sfxtravel volume to 1000', None, 0, 0)
             ctypes.windll.winmm.mciSendStringW('play sfxtravel', None, 0, 0)
+            sfx_travel_offen = True
+            sfx_travel_laenge = max(0, mci_zahl('status sfxtravel length'))
+            audio_meldung(f"80to88 startet (Länge laut MCI: {sfx_travel_laenge} ms)")
     except Exception as e:
         print(f"[AUDIO SFX TRAVEL] Fehler: {e}")
 
-def musik_stoppen():
-    """Stoppt alle laufenden Audio-Spuren."""
-    global musik_laeuft
+def sfx_leise_schliessen(alias):
+    """Erst stumm schalten, dann stoppen und schließen.
+    So kann beim Schließen kein Rest-Ton mehr herauskommen."""
     try:
-        ctypes.windll.winmm.mciSendStringW('stop bgm', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('close bgm', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('stop sfx_tc', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('close sfx_tc', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('stop sfxtravel', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('close sfxtravel', None, 0, 0)
-        musik_laeuft = False  # Flag auf False zurücksetzen
+        ctypes.windll.winmm.mciSendStringW(f'setaudio {alias} volume to 0', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW(f'stop {alias}', None, 0, 0)
+        ctypes.windll.winmm.mciSendStringW(f'close {alias}', None, 0, 0)
     except Exception:
         pass
+
+def sfx_travel_stoppen():
+    """Stoppt den Zeitsprung-Sound sofort (und schließt ihn, um MCI-Freezes zu verhindern)."""
+    global sfx_travel_offen
+    if sfx_travel_offen:
+        position = mci_zahl('status sfxtravel position')
+        audio_meldung(f"80to88 wird geschlossen (Position {position} von {sfx_travel_laenge} ms)")
+    sfx_leise_schliessen("sfxtravel")
+    sfx_travel_offen = False
+
+def sfx_time_circuits_stoppen():
+    sfx_leise_schliessen("sfx_tc")
+
+def musik_stoppen(dauer=FADE_CRASH):
+    """Blendet die Musik langsam aus und hält sie dann an (Pause, nicht Stopp)."""
+    global fade_start, fade_dauer
+    if musik_laeuft and not musik_pausiert and fade_start is None:
+        fade_start = time.time()
+        fade_dauer = dauer
+
+def musik_fade_aktualisieren():
+    """Wird in jedem Bild aufgerufen: macht die Musik ein bisschen leiser."""
+    global fade_start, musik_pausiert, letzter_vol_wert
+    if fade_start is None:
+        return
+    verstrichen = time.time() - fade_start
+    try:
+        if verstrichen < fade_dauer:
+            neuer_vol = max(0, int(MUSIK_LAUTSTAERKE * (1.0 - verstrichen / fade_dauer)))
+            if neuer_vol != letzter_vol_wert:     # nur senden, wenn sich etwas ändert
+                letzter_vol_wert = neuer_vol
+                ctypes.windll.winmm.mciSendStringW(f'setaudio bgm volume to {neuer_vol}', None, 0, 0)
+        else:
+            ctypes.windll.winmm.mciSendStringW('setaudio bgm volume to 0', None, 0, 0)   # ganz leise ...
+            letzter_vol_wert = 0
+            ctypes.windll.winmm.mciSendStringW('pause bgm', None, 0, 0)   # ... dann anhalten, die Stelle bleibt gemerkt
+            musik_pausiert = True
+            fade_start = None
+            audio_meldung("Musik pausiert")
+    except Exception:
+        fade_start = None
 
 
 # ---------- Spielfenster ----------
@@ -257,7 +342,6 @@ hindernis_timer = 0
 sfx_travel_gestartet = False
 start_travel_zeit = 0.0
 sieg_zeit = 0.0
-musik_stopp_geplant = False
 
 def hole_schwierigkeits_parameter():
     # Gibt (Startgeschwindigkeit, Beschleunigung, Spawn-Faktor, Trigger-Geschwindigkeit) zurück
@@ -322,28 +406,24 @@ def musik_togglen():
         sfx_time_circuits_starten()
         musik_starten()
     else:
-        musik_stoppen()
+        sfx_time_circuits_stoppen()      # Soundeffekte sofort aus
+        sfx_travel_stoppen()
+        musik_stoppen(FADE_TASTE_M)      # Musik kurz ausblenden, dann Pause
     if status == "MENÜ":
         menue_anzeigen()
 
 
 def spiel_starten():
-    global status, geschwindigkeit_mph, hindernis_timer, sfx_travel_gestartet, musik_stopp_geplant, letzter_vol_wert
-    
+    global status, geschwindigkeit_mph, hindernis_timer, sfx_travel_gestartet
+
     status = "LÄUFT"
     sfx_travel_gestartet = False
-    musik_stopp_geplant = False
-    letzter_vol_wert = 350
-    
+
     # 1. Menü-Box sofort vom Bildschirm entfernen
     anzeige.clear()
-    
+
     # 2. Menü-Sound stoppen, falls er noch läuft
-    try:
-        ctypes.windll.winmm.mciSendStringW('stop sfx_tc', None, 0, 0)
-        ctypes.windll.winmm.mciSendStringW('close sfx_tc', None, 0, 0)
-    except Exception:
-        pass
+    sfx_time_circuits_stoppen()
 
     start_spd, _, _, _ = hole_schwierigkeits_parameter()
     geschwindigkeit_mph = start_spd
@@ -425,7 +505,7 @@ def ui_aktualisieren():
 
 
 def spiel_schleife():
-    global geschwindigkeit_mph, status, hindernis_timer, sfx_travel_gestartet, start_travel_zeit, sieg_zeit, musik_stopp_geplant, letzter_vol_wert
+    global geschwindigkeit_mph, status, hindernis_timer, sfx_travel_gestartet, start_travel_zeit, sieg_zeit
     
     if status == "LÄUFT":
         _, beschleunigung, spawn_faktor, trigger_speed = hole_schwierigkeits_parameter()
@@ -474,18 +554,21 @@ def spiel_schleife():
             # Kollision
             dx = abs(h.xcor() - spieler.xcor())
             dy = abs(h.ycor() - spieler.ycor())
-            if dx < 35 and dy < 50:
+            if dx < 35 and dy < 50 and status == "LÄUFT":
                 status = "CRASH"
-                musik_stoppen()
+                sfx_travel_stoppen()         # Zeitreise-Geräusch sofort aus: nach einem Crash gibt es keine Zeitreise
+                musik_stoppen(FADE_CRASH)
                 
             if h.ycor() < -350:
                 h.hideturtle()
                 hindernisse.remove(h)
                 
         # ⚡ GEWONNEN BEI EXAKT 88 MPH
-        if geschwindigkeit_mph >= ziel_geschwindigkeit:
+        if geschwindigkeit_mph >= ziel_geschwindigkeit and status == "LÄUFT":   # nicht, wenn im selben Bild gecrasht
             status = "SIEG"
             sieg_zeit = time.time()
+            audio_meldung("SIEG")
+            musik_stoppen(FADE_SIEG)
             
             delorean_x = spieler.xcor()
             delorean_y = spieler.ycor()
@@ -505,22 +588,17 @@ def spiel_schleife():
         ui_aktualisieren()
 
     elif status == "SIEG":
-        # Stufenloses Ausblenden der Musik über 10 Sekunden (Fade-Out)
-        verstrichen = time.time() - sieg_zeit
-        fade_dauer = 10.0  # Fade-Out Dauer in Sekunden
-        
-        if verstrichen < fade_dauer:
-            neuer_vol = max(0, int(350 * (1.0 - verstrichen / fade_dauer)))
-            if neuer_vol != letzter_vol_wert and musik_aktiv:
-                letzter_vol_wert = neuer_vol
-                try:
-                    ctypes.windll.winmm.mciSendStringW(f'setaudio bgm volume to {neuer_vol}', None, 0, 0)
-                except Exception:
-                    pass
-        elif not musik_stopp_geplant:
-            musik_stopp_geplant = True
-            musik_stoppen()
-        
+        # Den Zeitsprung-Sound kurz vor seinem Ende stumm schließen.
+        # (Der Windows-MP3-Player kann ganz am Ende oder beim Schließen kurz "nachknacksen".)
+        if sfx_travel_offen:
+            position = mci_zahl('status sfxtravel position')
+            fast_fertig = sfx_travel_laenge > 0 and position >= sfx_travel_laenge - TRAVEL_ENDE_MS
+            if fast_fertig or mci_modus("sfxtravel") in ("stopped", ""):
+                sfx_travel_stoppen()
+
+    # Musik ausblenden (nach Crash, Sieg oder Taste M)
+    musik_fade_aktualisieren()
+
     fenster.update()
     fenster.ontimer(spiel_schleife, FPS_TAKT)
 
@@ -531,11 +609,7 @@ def neustart_oder_menue():
         status = "MENÜ"
         
         # Stoppt und schließt den Zeitsprung-Sound, um MCI-Freezes zu verhindern
-        try:
-            ctypes.windll.winmm.mciSendStringW('stop sfxtravel', None, 0, 0)
-            ctypes.windll.winmm.mciSendStringW('close sfxtravel', None, 0, 0)
-        except Exception:
-            pass
+        sfx_travel_stoppen()
 
         if musik_aktiv:
             sfx_time_circuits_starten()
@@ -568,8 +642,8 @@ fenster.onkeyrelease(lambda: tasten_freigabe("rechts"), "D")
 fenster.onkeypress(lambda: tasten_druck("rechts"), "Right")
 fenster.onkeyrelease(lambda: tasten_freigabe("rechts"), "Right")
 
-fenster.onkeypress(schwierigkeit_wechseln, "d")
-fenster.onkeypress(schwierigkeit_wechseln, "D")
+# (D ist schon oben gebunden: taste_d_gedrueckt() wechselt im Menü die Schwierigkeit
+#  und lenkt im Spiel nach rechts. Ein zweites onkeypress auf "d" würde das ersetzen.)
 fenster.onkeypress(musik_togglen, "m")
 fenster.onkeypress(musik_togglen, "M")
 
