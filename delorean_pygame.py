@@ -22,6 +22,11 @@ BREITE = 800
 HOEHE = 600
 FPS = 60
 
+STRASSE_BREITE = 440                             # Breite der Straße in Pixeln
+STRASSE_LINKS = (BREITE - STRASSE_BREITE) // 2   # linker Straßenrand (180)
+STRASSE_RECHTS = STRASSE_LINKS + STRASSE_BREITE  # rechter Straßenrand (620)
+AUTO_BREITE_FAKTOR = 0.95                        # 1.0 = Originalbreite der Autos
+
 FARBE_STRASSE = (45, 45, 50)
 FARBE_RASEN = (34, 139, 34)
 FARBE_RASEN_DUNKEL = (25, 110, 25)
@@ -34,6 +39,11 @@ FARBE_WEISS = (255, 255, 255)
 AUDIO_MUSIK = "bttf midi.mp3"
 AUDIO_TIME_CIRCUITS = "time_circuits.mp3"
 AUDIO_TRAVEL = "80to88.mp3"
+
+MUSIK_LAUTSTAERKE = 0.35   # normale Lautstärke der Musik (0.0 bis 1.0)
+FADE_CRASH = 5.0           # so viele Sekunden wird die Musik nach einem Crash leiser
+FADE_SIEG = 10.0           # ... und nach dem Sieg
+FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
 
 pygame.init()
 pygame.mixer.init()
@@ -68,6 +78,9 @@ sound_tc = None
 sound_travel = None
 musik_aktiv = True
 musik_laeuft = False
+musik_pausiert = False     # True = angehalten, läuft beim nächsten Start an derselben Stelle weiter
+fade_start = None          # Zeitpunkt, an dem das Ausblenden begann (None = kein Ausblenden)
+fade_dauer = FADE_CRASH
 
 try:
     pfad_tc = hole_audio_pfad(AUDIO_TIME_CIRCUITS)
@@ -96,24 +109,44 @@ def sfx_travel_starten():
         sound_travel.play()
 
 def musik_starten():
-    global musik_laeuft
+    """Startet die Musik – oder lässt sie dort weiterlaufen, wo sie angehalten wurde."""
+    global musik_laeuft, musik_pausiert, fade_start
     if not musik_aktiv:
         return
+    fade_start = None                    # ein laufendes Ausblenden abbrechen
     try:
-        if not musik_laeuft and os.path.exists(hole_audio_pfad(AUDIO_MUSIK)):
-            pygame.mixer.music.set_volume(0.35)  # 35% Lautstärke
-            pygame.mixer.music.play(-1)  # Endlosschleife
+        if musik_pausiert:
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
+            pygame.mixer.music.unpause()     # weiter an derselben Stelle
+            musik_pausiert = False
+        elif not musik_laeuft and os.path.exists(hole_audio_pfad(AUDIO_MUSIK)):
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
+            pygame.mixer.music.play(-1)      # Endlosschleife, von vorne
             musik_laeuft = True
         else:
-            pygame.mixer.music.set_volume(0.35)
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
     except Exception as e:
         print(f"[AUDIO] Fehler beim Starten der Musik: {e}")
 
-def musik_stoppen():
-    global musik_laeuft
-    pygame.mixer.music.stop()
-    pygame.mixer.stop()
-    musik_laeuft = False
+def musik_stoppen(dauer=FADE_CRASH):
+    """Blendet die Musik langsam aus und hält sie dann an (Pause, nicht Stopp)."""
+    global fade_start, fade_dauer
+    if musik_laeuft and not musik_pausiert and fade_start is None:
+        fade_start = time.time()
+        fade_dauer = dauer
+
+def musik_fade_aktualisieren():
+    """Wird in jedem Bild aufgerufen: macht die Musik ein bisschen leiser."""
+    global fade_start, musik_pausiert
+    if fade_start is None:
+        return
+    verstrichen = time.time() - fade_start
+    if verstrichen < fade_dauer:
+        pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE * (1.0 - verstrichen / fade_dauer))
+    else:
+        pygame.mixer.music.pause()           # anhalten, die Stelle bleibt gemerkt
+        musik_pausiert = True
+        fade_start = None
 
 
 # ---------- Prozedurale HD-Grafiken erstellen ----------
@@ -180,8 +213,17 @@ def erstelle_auto_rot_surface():
     
     return surf
 
-delorean_img = erstelle_delorean_surface()
-auto_rot_img = erstelle_auto_rot_surface()
+def schmaler_machen(surf):
+    """Macht ein Auto-Bild schmaler (Höhe bleibt gleich)."""
+    neue_breite = round(surf.get_width() * AUTO_BREITE_FAKTOR)
+    return pygame.transform.smoothscale(surf, (neue_breite, surf.get_height()))
+
+delorean_img = schmaler_machen(erstelle_delorean_surface())
+auto_rot_img = schmaler_machen(erstelle_auto_rot_surface())
+
+AUTO_HALB = delorean_img.get_width() // 2              # halbe Bildbreite (zum Zentrieren)
+TREFFER_BREITE = round(36 * AUTO_BREITE_FAKTOR)        # Breite der Kollisionsbox
+RAND = 30                                              # Abstand Auto-Mitte zum Straßenrand
 
 
 # ---------- Spielzustand & Parameter ----------
@@ -284,7 +326,7 @@ while laufend:
                     sfx_time_circuits_starten()
                     musik_starten()
                 else:
-                    musik_stoppen()
+                    musik_stoppen(FADE_TASTE_M)
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = pygame.mouse.get_pos()
@@ -299,7 +341,7 @@ while laufend:
                         sfx_time_circuits_starten()
                         musik_starten()
                     else:
-                        musik_stoppen()
+                        musik_stoppen(FADE_TASTE_M)
 
     # 2. GAME LOGIC
     if status == "LÄUFT":
@@ -327,7 +369,7 @@ while laufend:
             spieler_x += 7.0
             
         # Straßengrenzen
-        spieler_x = max(230.0, min(570.0, spieler_x))
+        spieler_x = max(STRASSE_LINKS + RAND, min(STRASSE_RECHTS - RAND, spieler_x))
         
         # Straßenstreifen scrollen
         scrolling_tempo = geschwindigkeit_mph / 3.0
@@ -340,53 +382,49 @@ while laufend:
         hindernis_timer += 1
         spawn_intervall = max(12, int((60 - int(geschwindigkeit_mph / 2)) * spawn_faktor))
         if hindernis_timer >= spawn_intervall:
-            x_pos = random.randint(235, 565)
+            x_pos = random.randint(STRASSE_LINKS + RAND + 5, STRASSE_RECHTS - RAND - 5)
             hindernisse.append([x_pos, -80])
             hindernis_timer = 0
             
         # Hindernisse bewegen & Kollisionsprüfung
         h_tempo = (geschwindigkeit_mph / 6.0) + 3.0
-        spieler_rect = pygame.Rect(spieler_x - 18, spieler_y - 35, 36, 70)
-        
+        spieler_rect = pygame.Rect(spieler_x - TREFFER_BREITE / 2, spieler_y - 35, TREFFER_BREITE, 70)
+
         for h in hindernisse[:]:
             h[1] += h_tempo
-            h_rect = pygame.Rect(h[0] - 18, h[1] - 35, 36, 70)
+            h_rect = pygame.Rect(h[0] - TREFFER_BREITE / 2, h[1] - 35, TREFFER_BREITE, 70)
             
-            if spieler_rect.colliderect(h_rect):
+            if spieler_rect.colliderect(h_rect) and status == "LÄUFT":
                 status = "CRASH"
-                musik_stoppen()
+                if sound_travel:
+                    sound_travel.stop()          # Zeitreise-Geräusch sofort aus: nach einem Crash gibt es keine Zeitreise
+                musik_stoppen(FADE_CRASH)
                 
             if h[1] > HOEHE + 100:
                 hindernisse.remove(h)
                 
         # ⚡ Sieg bei 88 MPH
-        if geschwindigkeit_mph >= ziel_geschwindigkeit:
+        if geschwindigkeit_mph >= ziel_geschwindigkeit and status == "LÄUFT":   # nicht, wenn im selben Bild gecrasht
             status = "SIEG"
             sieg_zeit = time.time()
-            
+            musik_stoppen(FADE_SIEG)
+
             # Feuer-Partikel erzeugen
             for y_p in range(int(spieler_y), HOEHE, 12):
-                for offset in [-16, 16]:
+                for offset in [-15, 15]:
                     partikel_liste.append([spieler_x + offset + random.randint(-4, 4), y_p, random.choice([(255, 69, 0), (255, 140, 0), (255, 215, 0)])])
 
-    elif status == "SIEG":
-        # 10 Sekunden Fade-Out der Musik
-        verstrichen = time.time() - sieg_zeit
-        fade_dauer = 10.0
-        if verstrichen < fade_dauer and musik_aktiv:
-            vol = max(0.0, 0.35 * (1.0 - verstrichen / fade_dauer))
-            pygame.mixer.music.set_volume(vol)
-        elif verstrichen >= fade_dauer:
-            pygame.mixer.music.stop()
+    # Musik ausblenden (nach Crash, Sieg oder Taste M)
+    musik_fade_aktualisieren()
 
     # 3. ZEICHNEN / RENDERN
     # Rasen Hintergrund
     fenster.fill(FARBE_RASEN)
     
-    # Asphaltierte Straße (400px breit in der Mitte)
-    pygame.draw.rect(fenster, FARBE_STRASSE, (200, 0, 400, HOEHE))
-    pygame.draw.line(fenster, FARBE_WEISS, (205, 0), (205, HOEHE), 5)
-    pygame.draw.line(fenster, FARBE_WEISS, (595, 0), (595, HOEHE), 5)
+    # Asphaltierte Straße (STRASSE_BREITE Pixel breit, in der Mitte)
+    pygame.draw.rect(fenster, FARBE_STRASSE, (STRASSE_LINKS, 0, STRASSE_BREITE, HOEHE))
+    pygame.draw.line(fenster, FARBE_WEISS, (STRASSE_LINKS + 5, 0), (STRASSE_LINKS + 5, HOEHE), 5)
+    pygame.draw.line(fenster, FARBE_WEISS, (STRASSE_RECHTS - 5, 0), (STRASSE_RECHTS - 5, HOEHE), 5)
     
     # Mittellinien der Straße
     for y_pos in streifen_y:
@@ -394,7 +432,7 @@ while laufend:
         
     # Hindernisse zeichnen
     for h in hindernisse:
-        fenster.blit(auto_rot_img, (h[0] - 22, h[1] - 40))
+        fenster.blit(auto_rot_img, (h[0] - AUTO_HALB, h[1] - 40))
         
     # Feuer-Spuren bei Sieg
     if status == "SIEG":
@@ -403,15 +441,19 @@ while laufend:
             
     # DeLorean zeichnen (nur wenn nicht im SIEG Zustand verschwunden)
     if status != "SIEG":
-        fenster.blit(delorean_img, (spieler_x - 22, spieler_y - 40))
+        fenster.blit(delorean_img, (spieler_x - AUTO_HALB, spieler_y - 40))
         
     # UI Overhead Display (während des Spiels)
     if status == "LÄUFT":
         spd_val = min(geschwindigkeit_mph, ziel_geschwindigkeit)
         txt_spd = font_ui.render(f"SPEED: {spd_val:.1f} MPH", True, FARBE_NEON_BLAU)
         txt_diff = font_ui.render(f"MODUS: {schwierigkeitsgrade[schwierigkeit_index]}", True, FARBE_WEISS)
-        fenster.blit(txt_spd, (20, 20))
-        fenster.blit(txt_diff, (BREITE - txt_diff.get_width() - 20, 20))
+        for txt, pos in [(txt_spd, (20, 20)), (txt_diff, (BREITE - txt_diff.get_width() - 20, 20))]:
+            # Halbtransparenter Hintergrund, damit der Text über dem Straßenrand lesbar bleibt
+            hintergrund = pygame.Surface((txt.get_width() + 12, txt.get_height() + 6), pygame.SRCALPHA)
+            hintergrund.fill((0, 0, 0, 150))
+            fenster.blit(hintergrund, (pos[0] - 6, pos[1] - 3))
+            fenster.blit(txt, pos)
         
     # Menü Overlay
     elif status == "MENÜ":
