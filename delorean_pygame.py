@@ -27,6 +27,7 @@ STRASSE_BREITE = 440                             # Breite der Straße in Pixeln
 STRASSE_LINKS = (BREITE - STRASSE_BREITE) // 2   # linker Straßenrand (180)
 STRASSE_RECHTS = STRASSE_LINKS + STRASSE_BREITE  # rechter Straßenrand (620)
 AUTO_BREITE_FAKTOR = 0.95                        # 1.0 = Originalbreite der Autos
+AUTO_GROESSE = 0.85                              # alle Autos kleiner (Breite UND Höhe): 0.85 = 15 % kleiner
 
 FARBE_STRASSE = (45, 45, 50)
 FARBE_RASEN = (34, 139, 34)
@@ -214,17 +215,21 @@ def erstelle_auto_rot_surface():
     
     return surf
 
-def schmaler_machen(surf):
-    """Macht ein Auto-Bild schmaler (Höhe bleibt gleich)."""
-    neue_breite = round(surf.get_width() * AUTO_BREITE_FAKTOR)
-    return pygame.transform.smoothscale(surf, (neue_breite, surf.get_height()))
+def groesse_anpassen(surf):
+    """Macht ein Auto-Bild kleiner: schmaler (AUTO_BREITE_FAKTOR) und insgesamt kleiner (AUTO_GROESSE)."""
+    neue_breite = round(surf.get_width() * AUTO_BREITE_FAKTOR * AUTO_GROESSE)
+    neue_hoehe = round(surf.get_height() * AUTO_GROESSE)
+    return pygame.transform.smoothscale(surf, (neue_breite, neue_hoehe))
 
-delorean_img = schmaler_machen(erstelle_delorean_surface())
-auto_rot_img = schmaler_machen(erstelle_auto_rot_surface())
+delorean_img = groesse_anpassen(erstelle_delorean_surface())
+auto_rot_img = groesse_anpassen(erstelle_auto_rot_surface())
 
 AUTO_HALB = delorean_img.get_width() // 2              # halbe Bildbreite (zum Zentrieren)
-TREFFER_BREITE = round(36 * AUTO_BREITE_FAKTOR)        # Breite der Kollisionsbox
+AUTO_HALB_HOCH = delorean_img.get_height() // 2        # halbe Bildhöhe (zum Zentrieren)
+TREFFER_BREITE = round(36 * AUTO_BREITE_FAKTOR * AUTO_GROESSE)   # Breite der Kollisionsbox
+TREFFER_HOEHE = round(70 * AUTO_GROESSE)                         # Höhe der Kollisionsbox
 RAND = 30                                              # Abstand Auto-Mitte zum Straßenrand
+FEUER_ABSTAND = round(16 * AUTO_BREITE_FAKTOR * AUTO_GROESSE)    # Feuerspuren: so weit links/rechts der Mitte (bei den Reifen)
 
 
 # ---------- Tachometer (links neben der Straße) ----------
@@ -411,8 +416,7 @@ while laufend:
                     if sound_travel:
                         sound_travel.stop()
                     if musik_aktiv:
-                        sfx_time_circuits_starten()
-                        musik_starten()
+                        musik_starten()          # Time-Circuits-Sound nur beim allerersten Start, nicht bei jedem Menü
                         
             elif event.key == pygame.K_d:
                 if status == "MENÜ":
@@ -421,7 +425,6 @@ while laufend:
             elif event.key == pygame.K_m:
                 musik_aktiv = not musik_aktiv
                 if musik_aktiv:
-                    sfx_time_circuits_starten()
                     musik_starten()
                 else:
                     musik_stoppen(FADE_TASTE_M)
@@ -436,7 +439,6 @@ while laufend:
                 elif 200 < mx < 600 and 340 < my < 400:
                     musik_aktiv = not musik_aktiv
                     if musik_aktiv:
-                        sfx_time_circuits_starten()
                         musik_starten()
                     else:
                         musik_stoppen(FADE_TASTE_M)
@@ -486,11 +488,11 @@ while laufend:
             
         # Hindernisse bewegen & Kollisionsprüfung
         h_tempo = (geschwindigkeit_mph / 6.0) + 3.0
-        spieler_rect = pygame.Rect(spieler_x - TREFFER_BREITE / 2, spieler_y - 35, TREFFER_BREITE, 70)
+        spieler_rect = pygame.Rect(spieler_x - TREFFER_BREITE / 2, spieler_y - TREFFER_HOEHE / 2, TREFFER_BREITE, TREFFER_HOEHE)
 
         for h in hindernisse[:]:
             h[1] += h_tempo
-            h_rect = pygame.Rect(h[0] - TREFFER_BREITE / 2, h[1] - 35, TREFFER_BREITE, 70)
+            h_rect = pygame.Rect(h[0] - TREFFER_BREITE / 2, h[1] - TREFFER_HOEHE / 2, TREFFER_BREITE, TREFFER_HOEHE)
             
             if spieler_rect.colliderect(h_rect) and status == "LÄUFT":
                 status = "CRASH"
@@ -509,7 +511,7 @@ while laufend:
 
             # Feuer-Partikel erzeugen
             for y_p in range(int(spieler_y), HOEHE, 12):
-                for offset in [-15, 15]:
+                for offset in [-FEUER_ABSTAND, FEUER_ABSTAND]:
                     partikel_liste.append([spieler_x + offset + random.randint(-4, 4), y_p, random.choice([(255, 69, 0), (255, 140, 0), (255, 215, 0)])])
 
     # Musik ausblenden (nach Crash, Sieg oder Taste M)
@@ -530,7 +532,7 @@ while laufend:
         
     # Hindernisse zeichnen
     for h in hindernisse:
-        fenster.blit(auto_rot_img, (h[0] - AUTO_HALB, h[1] - 40))
+        fenster.blit(auto_rot_img, (h[0] - AUTO_HALB, h[1] - AUTO_HALB_HOCH))
         
     # Feuer-Spuren bei Sieg
     if status == "SIEG":
@@ -539,7 +541,7 @@ while laufend:
             
     # DeLorean zeichnen (nur wenn nicht im SIEG Zustand verschwunden)
     if status != "SIEG":
-        fenster.blit(delorean_img, (spieler_x - AUTO_HALB, spieler_y - 40))
+        fenster.blit(delorean_img, (spieler_x - AUTO_HALB, spieler_y - AUTO_HALB_HOCH))
         
     # Tacho (im Spiel, nach Crash und nach Sieg – nicht im Menü)
     if status != "MENÜ":
