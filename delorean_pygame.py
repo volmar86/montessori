@@ -28,6 +28,7 @@ STRASSE_LINKS = (BREITE - STRASSE_BREITE) // 2   # linker Straßenrand (180)
 STRASSE_RECHTS = STRASSE_LINKS + STRASSE_BREITE  # rechter Straßenrand (620)
 AUTO_BREITE_FAKTOR = 0.95                        # 1.0 = Originalbreite der Autos
 AUTO_GROESSE = 0.85                              # alle Autos kleiner (Breite UND Höhe): 0.85 = 15 % kleiner
+AUTO_LAENGE_FAKTOR = 0.85                        # Autos zusätzlich kürzer (nur die Länge): 0.85 = 15 % kürzer
 
 FARBE_STRASSE = (45, 45, 50)
 FARBE_RASEN = (34, 139, 34)
@@ -218,7 +219,7 @@ def erstelle_auto_rot_surface():
 def groesse_anpassen(surf):
     """Macht ein Auto-Bild kleiner: schmaler (AUTO_BREITE_FAKTOR) und insgesamt kleiner (AUTO_GROESSE)."""
     neue_breite = round(surf.get_width() * AUTO_BREITE_FAKTOR * AUTO_GROESSE)
-    neue_hoehe = round(surf.get_height() * AUTO_GROESSE)
+    neue_hoehe = round(surf.get_height() * AUTO_GROESSE * AUTO_LAENGE_FAKTOR)
     return pygame.transform.smoothscale(surf, (neue_breite, neue_hoehe))
 
 delorean_img = groesse_anpassen(erstelle_delorean_surface())
@@ -227,7 +228,7 @@ auto_rot_img = groesse_anpassen(erstelle_auto_rot_surface())
 AUTO_HALB = delorean_img.get_width() // 2              # halbe Bildbreite (zum Zentrieren)
 AUTO_HALB_HOCH = delorean_img.get_height() // 2        # halbe Bildhöhe (zum Zentrieren)
 TREFFER_BREITE = round(36 * AUTO_BREITE_FAKTOR * AUTO_GROESSE)   # Breite der Kollisionsbox
-TREFFER_HOEHE = round(70 * AUTO_GROESSE)                         # Höhe der Kollisionsbox
+TREFFER_HOEHE = round(70 * AUTO_GROESSE * AUTO_LAENGE_FAKTOR)    # Höhe (Länge) der Kollisionsbox
 RAND = 30                                              # Abstand Auto-Mitte zum Straßenrand
 FEUER_ABSTAND = round(16 * AUTO_BREITE_FAKTOR * AUTO_GROESSE)    # Feuerspuren: so weit links/rechts der Mitte (bei den Reifen)
 
