@@ -1,0 +1,9 @@
+# FEHLER 4 — Findest du ihn?
+from turtle import *
+speed(0)
+pensize(5)
+color("purple")
+forward(150)
+Left(90)
+forward(150)
+done()
