@@ -733,8 +733,7 @@ def neustart_oder_menue():
         sfx_travel_stoppen()
 
         if musik_aktiv:
-            sfx_time_circuits_starten()
-            musik_starten()
+            musik_starten()              # Time-Circuits-Sound nur beim allerersten Start, nicht bei jedem Menü
         menue_anzeigen()
     elif status == "MENÜ":
         spiel_starten()
