@@ -54,6 +54,9 @@ TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (g
 TOUCH_EMPFINDLICHKEIT = 1.3   # Lenken mit Finger/Maus: 1.0 = das Auto bewegt sich so weit wie der Finger, höher = empfindlicher
 ENDE_SPERRE = 0.8             # Sekunden nach Crash/Sieg, in denen ein Tippen noch ignoriert wird
 
+# Größerer Audio-Puffer (Standard: 512): die Musik gracht nicht mehr, wenn das Spiel kurz beschäftigt ist.
+# Preis: etwas mehr Verzögerung (~46 ms), bei Musik und Soundeffekten nicht zu hören.
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 pygame.mixer.init()
 
