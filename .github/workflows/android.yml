@@ -1,0 +1,54 @@
+name: Android APK
+
+on:
+  push:
+    paths:
+      - "giochi_android/**"
+      - ".github/workflows/android.yml"
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        game: [delorean_pygame, delorean_3d]    # weitere Spiele: Ordner giochi_android/<name> mit main.py + buildozer.spec, hier eintragen
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Systempakete installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+
+      - name: Buildozer installieren
+        run: pip install buildozer "cython<3" setuptools
+
+      - name: Audio in .ogg umwandeln
+        run: |
+          sed -i 's/\r$//' giochi_android/convert_audio.sh      # falls das Skript mit Windows-Zeilenenden hochgeladen wurde
+          bash giochi_android/convert_audio.sh giochi_android/${{ matrix.game }}
+
+      - name: Buildozer-Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            giochi_android/${{ matrix.game }}/.buildozer
+          key: buildozer-${{ matrix.game }}-${{ hashFiles(format('giochi_android/{0}/buildozer.spec', matrix.game)) }}
+
+      - name: APK bauen
+        working-directory: giochi_android/${{ matrix.game }}
+        run: buildozer -v android debug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.game }}-apk
+          path: giochi_android/${{ matrix.game }}/bin/*.apk
