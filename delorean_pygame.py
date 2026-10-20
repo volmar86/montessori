@@ -27,7 +27,7 @@ STRASSE_BREITE = 440                             # Breite der Straße in Pixeln
 STRASSE_LINKS = (BREITE - STRASSE_BREITE) // 2   # linker Straßenrand (180)
 STRASSE_RECHTS = STRASSE_LINKS + STRASSE_BREITE  # rechter Straßenrand (620)
 AUTO_BREITE_FAKTOR = 0.95                        # 1.0 = Originalbreite der Autos
-AUTO_GROESSE = 0.85                              # alle Autos kleiner (Breite UND Höhe): 0.85 = 15 % kleiner
+AUTO_GROESSE = 0.7                               # alle Autos kleiner (Breite UND Höhe): 0.7 = 30 % kleiner
 AUTO_LAENGE_FAKTOR = 0.85                        # Autos zusätzlich kürzer (nur die Länge): 0.85 = 15 % kürzer
 
 FARBE_STRASSE = (45, 45, 50)
@@ -47,6 +47,7 @@ MUSIK_LAUTSTAERKE = 0.35   # normale Lautstärke der Musik (0.0 bis 1.0)
 FADE_CRASH = 5.0           # so viele Sekunden wird die Musik nach einem Crash leiser
 FADE_SIEG = 10.0           # ... und nach dem Sieg
 FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
+TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
 
 pygame.init()
 pygame.mixer.init()
@@ -109,7 +110,7 @@ def sfx_time_circuits_starten():
 def sfx_travel_starten():
     if musik_aktiv and sound_travel:
         sound_travel.stop()
-        sound_travel.play()
+        sound_travel.play(maxtime=max(1, int(sound_travel.get_length() * 1000) - TRAVEL_ENDE_MS))   # Ende abschneiden
 
 def musik_starten():
     """Startet die Musik – oder lässt sie dort weiterlaufen, wo sie angehalten wurde."""
@@ -357,12 +358,16 @@ font_sub = pygame.font.SysFont("Courier", 16, bold=True)
 
 
 def hole_schwierigkeits_parameter():
+    """Gibt (Startgeschwindigkeit, Beschleunigung, Spawn-Faktor, Trigger-Geschwindigkeit, Scroll-Faktor) zurück.
+    Wie lange das Spiel dauert, bestimmen Start, Beschleunigung und Trigger (Anfänger: kurz, Experte: lang).
+    Wie schwer es ist, bestimmen Spawn-Faktor (kleiner = mehr Autos) und Scroll-Faktor
+    (1.0 = Straße und Autos so schnell wie ursprünglich, kleiner = langsamer = leichter)."""
     if schwierigkeitsgrade[schwierigkeit_index] == "Anfänger":
-        return 15.0, 0.03, 1.4, 65.0
+        return 40.0, 0.08, 1.4, 75.0, 0.6
     elif schwierigkeitsgrade[schwierigkeit_index] == "Mittel":
-        return 25.0, 0.05, 1.0, 70.0
+        return 25.0, 0.05, 1.0, 70.0, 0.8
     else:  # Experte
-        return 40.0, 0.08, 0.6, 75.0
+        return 15.0, 0.03, 0.6, 65.0, 1.0
 
 
 def spiel_starten():
@@ -370,7 +375,7 @@ def spiel_starten():
     status = "LÄUFT"
     sfx_travel_gestartet = False
     
-    start_spd, _, _, _ = hole_schwierigkeits_parameter()
+    start_spd = hole_schwierigkeits_parameter()[0]
     geschwindigkeit_mph = start_spd
     hindernis_timer = 0
     spieler_x = 400.0
@@ -446,7 +451,7 @@ while laufend:
 
     # 2. GAME LOGIC
     if status == "LÄUFT":
-        _, beschleunigung, spawn_faktor, trigger_speed = hole_schwierigkeits_parameter()
+        _, beschleunigung, spawn_faktor, trigger_speed, scroll_faktor = hole_schwierigkeits_parameter()
         
         # Geschwindigkeits-Steigerung
         if geschwindigkeit_mph < trigger_speed:
@@ -473,7 +478,7 @@ while laufend:
         spieler_x = max(STRASSE_LINKS + RAND, min(STRASSE_RECHTS - RAND, spieler_x))
         
         # Straßenstreifen scrollen
-        scrolling_tempo = geschwindigkeit_mph / 3.0
+        scrolling_tempo = geschwindigkeit_mph / 3.0 * scroll_faktor
         for i in range(len(streifen_y)):
             streifen_y[i] += scrolling_tempo
             if streifen_y[i] > HOEHE:
@@ -481,14 +486,16 @@ while laufend:
                 
         # Hindernisse erzeugen
         hindernis_timer += 1
-        spawn_intervall = max(12, int((60 - int(geschwindigkeit_mph / 2)) * spawn_faktor))
+        # Geteilt durch scroll_faktor: fahren die Autos langsamer, kommen sie auch seltener,
+        # sonst stünden sie enger hintereinander und das Spiel wäre nicht leichter
+        spawn_intervall = max(12, int((60 - int(geschwindigkeit_mph / 2)) * spawn_faktor / scroll_faktor))
         if hindernis_timer >= spawn_intervall:
             x_pos = random.randint(STRASSE_LINKS + RAND + 5, STRASSE_RECHTS - RAND - 5)
             hindernisse.append([x_pos, -80])
             hindernis_timer = 0
             
         # Hindernisse bewegen & Kollisionsprüfung
-        h_tempo = (geschwindigkeit_mph / 6.0) + 3.0
+        h_tempo = ((geschwindigkeit_mph / 6.0) + 3.0) * scroll_faktor
         spieler_rect = pygame.Rect(spieler_x - TREFFER_BREITE / 2, spieler_y - TREFFER_HOEHE / 2, TREFFER_BREITE, TREFFER_HOEHE)
 
         for h in hindernisse[:]:
