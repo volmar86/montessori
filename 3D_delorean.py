@@ -4,11 +4,14 @@
 #  Steuerung:
 #    - A / D oder Pfeiltasten zum Lenken
 #    - ENTER oder R für Neustart
+#    - M: Musik An/Aus
 # ============================================================
 
 import pygame
 import random
 import math
+import os
+import time
 import sys
 
 # ====== EINSTELLUNGEN ======
@@ -27,21 +30,163 @@ FARBE_MITTELLINIE = (235, 235, 235)
 FARBE_DUNST = (95, 55, 105)       # so sieht alles ganz hinten am Horizont aus (Nebel/Dunst)
 FARBE_TEXT = (255, 215, 0)
 
+# ---------- Spielablauf ----------
+LENK_TEMPO = 3.5                  # wie schnell man lenkt (ursprünglich 2.5)
+TRAVEL_DAUER = 6.5                # so viele Sekunden dauert es vom Trigger bis 88 mph (Länge von 80to88)
+
+# Schwierigkeitsgrade: (Startgeschwindigkeit mph, Beschleunigung mph pro Sekunde,
+#                       Spawn-Faktor [kleiner = mehr Autos], Trigger-mph: ab hier läuft 80to88 und die
+#                       Geschwindigkeit steigt im Takt des Sounds auf 88)
+SCHWIERIGKEITEN = {
+    "Anfänger": (30.0, 6.0, 1.4, 65.0),
+    "Mittel":   (30.0, 8.0, 1.0, 70.0),
+    "Experte":  (30.0, 10.0, 0.7, 75.0),
+}
+
+# ---------- Hindernisse ----------
+# Neue Autos kommen nach Zeit (nicht mehr "3 % pro Bild"), und jedes liegt weit genug neben dem vorigen:
+# so entsteht keine Wand aus Autos, und es bleibt immer ein Weg frei.
+SPAWN_ABSTAND_SEK = (0.9, 1.6)    # so viele Sekunden (zufällig zwischen den Werten) bis zum nächsten Auto
+SPAWN_START_SEK = 1.5             # Pause am Anfang, bevor das erste Auto kommt
+SPAWN_ENTFERNUNG = 400.0          # so weit vor dem Spieler erscheint ein Auto
+SPUR_MAX = 0.75                   # äußerste Spur links/rechts
+MIN_SPUR_ABSTAND = 0.5            # ein neues Auto muss mindestens so weit neben dem vorigen liegen
+
+# ---------- Audio-Dateinamen ----------
+AUDIO_MUSIK = "bttf midi.mp3"
+AUDIO_TIME_CIRCUITS = "time_circuits.mp3"
+AUDIO_TRAVEL = "80to88.mp3"
+
+MUSIK_LAUTSTAERKE = 0.35   # normale Lautstärke der Musik (0.0 bis 1.0)
+FADE_CRASH = 5.0           # so viele Sekunden wird die Musik nach einem Crash leiser
+FADE_SIEG = 10.0           # ... und nach dem Sieg
+FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
+TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
+
 pygame.init()
+try:
+    pygame.mixer.init()
+except Exception as e:
+    print(f"[AUDIO WARNUNG] Kein Audiogerät: {e}")
 fenster = pygame.display.set_mode((BREITE, HOEHE))
 pygame.display.set_caption("DeLorean 88 mph Challenge – Pseudo-3D")
 uhr = pygame.time.Clock()
 
 font_ui = pygame.font.SysFont("Courier", 22, bold=True)
 font_titel = pygame.font.SysFont("Courier", 32, bold=True)
+font_sub = pygame.font.SysFont("Courier", 16, bold=True)
+
+
+# ---------- Pfad-Finder für Audio ----------
+def hole_audio_pfad(dateiname):
+    """Ermittelt den Pfad der Audiodatei im 'Music'-Ordner oder im Hauptordner."""
+    skript_ordner = os.path.dirname(os.path.abspath(__file__))
+    mögliche_namen = [dateiname]
+    if "_" in dateiname:
+        mögliche_namen.append(dateiname.replace("_", ""))
+    elif "80to88" in dateiname:
+        mögliche_namen.append("80_to_88.mp3")
+
+    for name in mögliche_namen:
+        pfad_music = os.path.join(skript_ordner, "Music", name)
+        pfad_direkt = os.path.join(skript_ordner, name)
+        if os.path.exists(pfad_music):
+            return pfad_music
+        if os.path.exists(pfad_direkt):
+            return pfad_direkt
+    return os.path.join(skript_ordner, dateiname)
+
+
+# ---------- Audio-Manager (Pygame Mixer, wie in delorean_pygame.py) ----------
+sound_tc = None
+sound_travel = None
+musik_aktiv = True
+musik_laeuft = False
+musik_pausiert = False     # True = angehalten, läuft beim nächsten Start an derselben Stelle weiter
+fade_start = None          # Zeitpunkt, an dem das Ausblenden begann (None = kein Ausblenden)
+fade_dauer = FADE_CRASH
+
+try:
+    pfad_tc = hole_audio_pfad(AUDIO_TIME_CIRCUITS)
+    if os.path.exists(pfad_tc):
+        sound_tc = pygame.mixer.Sound(pfad_tc)
+
+    pfad_tr = hole_audio_pfad(AUDIO_TRAVEL)
+    if os.path.exists(pfad_tr):
+        sound_travel = pygame.mixer.Sound(pfad_tr)
+
+    pfad_bgm = hole_audio_pfad(AUDIO_MUSIK)
+    if os.path.exists(pfad_bgm):
+        pygame.mixer.music.load(pfad_bgm)
+except Exception as e:
+    print(f"[AUDIO WARNUNG] Audio konnte nicht vollständig geladen werden: {e}")
+
+
+def sfx_time_circuits_starten():
+    if musik_aktiv and sound_tc:
+        sound_tc.stop()
+        sound_tc.play()
+
+def sfx_travel_starten():
+    if musik_aktiv and sound_travel:
+        sound_travel.stop()
+        sound_travel.play(maxtime=max(1, int(sound_travel.get_length() * 1000) - TRAVEL_ENDE_MS))   # Ende abschneiden
+
+def musik_starten():
+    """Startet die Musik – oder lässt sie dort weiterlaufen, wo sie angehalten wurde."""
+    global musik_laeuft, musik_pausiert, fade_start
+    if not musik_aktiv:
+        return
+    fade_start = None                    # ein laufendes Ausblenden abbrechen
+    try:
+        if musik_pausiert:
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
+            pygame.mixer.music.unpause()     # weiter an derselben Stelle
+            musik_pausiert = False
+        elif not musik_laeuft and os.path.exists(hole_audio_pfad(AUDIO_MUSIK)):
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
+            pygame.mixer.music.play(-1)      # Endlosschleife, von vorne
+            musik_laeuft = True
+        else:
+            pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE)
+    except Exception as e:
+        print(f"[AUDIO] Fehler beim Starten der Musik: {e}")
+
+def musik_stoppen(dauer=FADE_CRASH):
+    """Blendet die Musik langsam aus und hält sie dann an (Pause, nicht Stopp)."""
+    global fade_start, fade_dauer
+    if musik_laeuft and not musik_pausiert and fade_start is None:
+        fade_start = time.time()
+        fade_dauer = dauer
+
+def musik_fade_aktualisieren():
+    """Wird in jedem Bild aufgerufen: macht die Musik ein bisschen leiser."""
+    global fade_start, musik_pausiert
+    if fade_start is None:
+        return
+    verstrichen = time.time() - fade_start
+    if verstrichen < fade_dauer:
+        pygame.mixer.music.set_volume(MUSIK_LAUTSTAERKE * (1.0 - verstrichen / fade_dauer))
+    else:
+        pygame.mixer.music.pause()           # anhalten, die Stelle bleibt gemerkt
+        musik_pausiert = True
+        fade_start = None
+
 
 # ====== GAME VARIABLES ======
 pos_z = 0.0
 spieler_x = 0.0
 geschwindigkeit_mph = 30.0
 ziel_geschwindigkeit = 88.0
-status = "LÄUFT"
+status = "MENÜ"
 kurven_neigung = 0.0
+
+schwierigkeitsgrade = list(SCHWIERIGKEITEN)
+schwierigkeit_index = 1
+
+start_travel_zeit = 0.0     # Zeitpunkt, an dem 80to88 gestartet wurde
+spawn_timer = SPAWN_START_SEK   # Sekunden bis zum nächsten Auto
+letzte_spur = 0.0           # Spur des zuletzt erzeugten Autos
 
 hindernisse = []   # Liste von [pos_z, spur]   spur: -1 = linker Rand, 0 = Mitte, +1 = rechter Rand
 
@@ -216,6 +361,39 @@ delorean_base = erstelle_delorean_sprite()
 auto_rot_base = erstelle_auto_rot_sprite()
 
 
+# ---------- Feuerspuren (bei 88 mph: die DeLorean verschwindet, zwei Flammenlinien bleiben auf der Straße) ----------
+FEUER_FARBEN = [(255, 69, 0), (255, 140, 0), (255, 215, 0)]
+FEUER_AUTO_Y = 520                # Höhe auf dem Bildschirm, wo die DeLorean steht (wie beim Zeichnen des Autos)
+FEUER_REIFEN_ABSTAND = 30         # so viele Pixel liegen die Reifen links/rechts von der Auto-Mitte
+
+
+def feuer_spuren_zeichnen():
+    """Zwei Flammenlinien von den Reifen bis zum Horizont. Sie laufen in der Perspektive zusammen
+    (gleiche Formeln wie bei der Straße) und flackern in jedem Bild neu."""
+    p0 = (FEUER_AUTO_Y - HORIZONT_Y) / (HOEHE - HORIZONT_Y)           # Perspektive auf Höhe des Autos
+    halbe_breite0 = strassen_breite(p0) / 2
+    spur_auto = (BREITE / 2 - strassen_mitte(p0)) / halbe_breite0     # auf welcher Spur das Auto stand
+
+    for seite in (-1, 1):
+        spur = spur_auto + seite * FEUER_REIFEN_ABSTAND / halbe_breite0
+        p = p0
+        while p > 0.04:                                               # vom Auto (nah) zum Horizont (fern)
+            y = HORIZONT_Y + p * (HOEHE - HORIZONT_Y)
+            x = strassen_mitte(p) + spur * strassen_breite(p) / 2
+            dunst = max(0.0, 1.0 - p / 0.25) * 0.7                    # ganz hinten verschwimmt das Feuer im Dunst
+
+            for _ in range(2):                                        # zwei Flammen pro Schritt: dichter und lebendiger
+                r = max(1, int(p * 14 * random.uniform(0.6, 1.25)))
+                fx = x + random.uniform(-1, 1) * p * 7
+                fy = y - random.uniform(0, 1) * p * 16                # Flammen züngeln nach oben
+                farbe = mischen(random.choice(FEUER_FARBEN), FARBE_DUNST, dunst)
+                pygame.draw.circle(fenster, mischen((170, 25, 0), FARBE_DUNST, dunst), (fx, fy), int(r * 1.6) + 1)   # Glut-Rand
+                pygame.draw.circle(fenster, farbe, (fx, fy), r)                                                      # Flamme
+                if random.random() < 0.6:
+                    pygame.draw.circle(fenster, mischen((255, 245, 190), FARBE_DUNST, dunst), (fx, fy), max(1, r // 2))   # heißer Kern
+            p *= 0.93
+
+
 # ---------- Tachometer (unten links) ----------
 # Nachgebaut nach dem Film-Tacho: weiße mph-Zahlen 15 bis 95 (55 rot, ganz oben),
 # innen blaue km/h-Zahlen, unten eine Digitalanzeige.
@@ -313,8 +491,85 @@ def tacho_zeichnen(mph):
     fenster.blit(zahl, zahl.get_rect(center=(TACHO_X, TACHO_Y + 56)))
 
 
+def hole_schwierigkeits_parameter():
+    """Gibt (Startgeschwindigkeit, Beschleunigung, Spawn-Faktor, Trigger-Geschwindigkeit) zurück."""
+    return SCHWIERIGKEITEN[schwierigkeitsgrade[schwierigkeit_index]]
+
+
+def schwierigkeit_wechseln():
+    global schwierigkeit_index
+    schwierigkeit_index = (schwierigkeit_index + 1) % len(schwierigkeitsgrade)
+
+
+def musik_umschalten():
+    global musik_aktiv
+    musik_aktiv = not musik_aktiv
+    if musik_aktiv:
+        musik_starten()
+    else:
+        musik_stoppen(FADE_TASTE_M)
+
+
+def spiel_starten():
+    global status, geschwindigkeit_mph, pos_z, spieler_x, spawn_timer, letzte_spur, kurven_neigung
+    status = "LÄUFT"
+    geschwindigkeit_mph = hole_schwierigkeits_parameter()[0]
+    pos_z = 0.0
+    spieler_x = 0.0
+    kurven_neigung = 0.0
+    hindernisse.clear()
+    spawn_timer = SPAWN_START_SEK
+    letzte_spur = 0.0
+    if sound_tc:
+        sound_tc.stop()
+    if sound_travel:
+        sound_travel.stop()
+
+
+def zum_menue():
+    """Zurück ins Menü (nach Crash oder Sieg)."""
+    global status
+    status = "MENÜ"
+    hindernisse.clear()
+    if sound_travel:
+        sound_travel.stop()
+    if musik_aktiv:
+        musik_starten()          # Time-Circuits-Sound nur beim allerersten Start, nicht bei jedem Menü
+
+
+def text_mit_glanz_zeichnen(text, font, farbe, x, y):
+    """Zeichnet einen retro Neon-Text mit Schatten-Effekt."""
+    schatten = font.render(text, True, (0, 0, 0))
+    vordergrund = font.render(text, True, farbe)
+    fenster.blit(schatten, schatten.get_rect(center=(x + 2, y + 2)))
+    fenster.blit(vordergrund, vordergrund.get_rect(center=(x, y)))
+
+
+def menue_zeichnen():
+    box = pygame.Surface((520, 360), pygame.SRCALPHA)
+    box.fill((0, 0, 0, 220))
+    fenster.blit(box, (140, 120))
+
+    text_mit_glanz_zeichnen("⚡ DELOREAN 88 MPH ⚡", font_titel, FARBE_TEXT, 400, 160)
+    text_mit_glanz_zeichnen("[ ENTER / KLICK ] SPIEL STARTEN", font_ui, (255, 255, 255), 400, 230)
+
+    diff_str = f"[ D ] SCHWIERIGKEIT: < {schwierigkeitsgrade[schwierigkeit_index]} >"
+    text_mit_glanz_zeichnen(diff_str, font_ui, (0, 255, 255), 400, 290)
+
+    m_farbe = (144, 238, 144) if musik_aktiv else (220, 20, 60)
+    m_str = f"[ M ] MUSIK: < {'AN' if musik_aktiv else 'AUS'} >"
+    text_mit_glanz_zeichnen(m_str, font_ui, m_farbe, 400, 350)
+
+    sub = font_sub.render("Steuerung: A/D oder Pfeiltasten zum Lenken", True, (180, 180, 180))
+    fenster.blit(sub, sub.get_rect(center=(400, 430)))
+
+
 # ====== HAUPTSCHLEIFE ======
 laufend = True
+if musik_aktiv:
+    sfx_time_circuits_starten()      # Time-Circuits-Sound nur beim allerersten Start
+    musik_starten()
+
 while laufend:
     dt = uhr.tick(FPS) / 1000.0
 
@@ -322,19 +577,45 @@ while laufend:
         if event.type == pygame.QUIT:
             laufend = False
         elif event.type == pygame.KEYDOWN:
-            if event.key in [pygame.K_RETURN, pygame.K_r] and status in ["CRASH", "SIEG"]:
-                status = "LÄUFT"
-                geschwindigkeit_mph = 30.0
-                pos_z = 0.0
-                spieler_x = 0.0
-                hindernisse.clear()
+            if event.key in [pygame.K_RETURN, pygame.K_r]:
+                if status == "MENÜ":
+                    spiel_starten()
+                elif status in ["CRASH", "SIEG"]:
+                    zum_menue()
+            elif event.key == pygame.K_d and status == "MENÜ":
+                schwierigkeit_wechseln()
+            elif event.key == pygame.K_m:
+                musik_umschalten()
 
-    if status == "LÄUFT":
-        if geschwindigkeit_mph < ziel_geschwindigkeit:
-            geschwindigkeit_mph += 8.0 * dt
+        elif event.type == pygame.MOUSEBUTTONDOWN and status == "MENÜ":
+            mx, my = event.pos
+            if 200 < mx < 600 and 200 < my < 260:
+                spiel_starten()
+            elif 200 < mx < 600 and 270 < my < 330:
+                schwierigkeit_wechseln()
+            elif 200 < mx < 600 and 340 < my < 400:
+                musik_umschalten()
+
+    if status == "MENÜ":
+        pos_z += 120.0 * dt                  # die Straße rollt langsam im Hintergrund des Menüs
+
+    elif status == "LÄUFT":
+        _, beschleunigung, spawn_faktor, trigger_mph = hole_schwierigkeits_parameter()
+
+        if geschwindigkeit_mph < trigger_mph:
+            geschwindigkeit_mph += beschleunigung * dt
+            if geschwindigkeit_mph >= trigger_mph:
+                geschwindigkeit_mph = trigger_mph
+                start_travel_zeit = time.time()
+                sfx_travel_starten()
         else:
-            geschwindigkeit_mph = ziel_geschwindigkeit
-            status = "SIEG"
+            # Von hier bis 88 mph vergehen genau TRAVEL_DAUER Sekunden: im Takt des 80to88-Sounds
+            verstrichen = time.time() - start_travel_zeit
+            geschwindigkeit_mph = trigger_mph + (verstrichen / TRAVEL_DAUER) * (ziel_geschwindigkeit - trigger_mph)
+            if geschwindigkeit_mph >= ziel_geschwindigkeit:
+                geschwindigkeit_mph = ziel_geschwindigkeit
+                status = "SIEG"
+                musik_stoppen(FADE_SIEG)
 
         pos_z += geschwindigkeit_mph * 5.0 * dt
 
@@ -346,13 +627,20 @@ while laufend:
         if tasten[pygame.K_d] or tasten[pygame.K_RIGHT]:
             lenk_richtung = -1
 
-        spieler_x += lenk_richtung * 2.5 * dt
+        spieler_x += lenk_richtung * LENK_TEMPO * dt
         spieler_x = max(-1.8, min(1.8, spieler_x))
         kurven_neigung = -lenk_richtung * 12.0
 
         # Spawnen von Hindernissen (spur: wo auf der Straße, -0.75 = links ... +0.75 = rechts)
-        if random.random() < 0.03:
-            hindernisse.append([pos_z + 400.0, random.uniform(-0.75, 0.75)])
+        # Nach Zeit, nicht nach Bildern; und die neue Spur liegt immer mindestens MIN_SPUR_ABSTAND neben der vorigen.
+        spawn_timer -= dt
+        if spawn_timer <= 0:
+            spur = random.uniform(-SPUR_MAX, SPUR_MAX)
+            while abs(spur - letzte_spur) < MIN_SPUR_ABSTAND:
+                spur = random.uniform(-SPUR_MAX, SPUR_MAX)
+            hindernisse.append([pos_z + SPAWN_ENTFERNUNG, spur])
+            letzte_spur = spur
+            spawn_timer = random.uniform(*SPAWN_ABSTAND_SEK) * spawn_faktor
 
     # 1. Pseudo-3D Welt rendern
     zeichne_pseudo_3d_welt()
@@ -387,6 +675,16 @@ while laufend:
                 # Faire Kollision: echte Überlappung auf dem Bildschirm, etwas verkleinert
                 if status == "LÄUFT" and spieler_rect.inflate(-12, -12).colliderect(h_rect.inflate(-6, -4)):
                     status = "CRASH"
+                    if sound_travel:
+                        sound_travel.stop()      # nach einem Crash gibt es keine Zeitreise
+                    musik_stoppen(FADE_CRASH)
+
+    # Musik ausblenden (nach Crash, Sieg oder Taste M)
+    musik_fade_aktualisieren()
+
+    # Feuerspuren nach dem Zeitsprung (die DeLorean ist dann verschwunden)
+    if status == "SIEG":
+        feuer_spuren_zeichnen()
 
     # 4. DeLorean zeichnen
     if status != "SIEG":
@@ -394,14 +692,17 @@ while laufend:
         rect = gedrehtes_auto.get_rect(center=(BREITE // 2, 520))
         fenster.blit(gedrehtes_auto, rect)
 
-    # 5. Tacho und Text
-    tacho_zeichnen(min(geschwindigkeit_mph, ziel_geschwindigkeit))
+    # 5. Tacho und Text (im Menü kein Tacho: die Menü-Box würde ihn überdecken)
+    if status == "MENÜ":
+        menue_zeichnen()
+    else:
+        tacho_zeichnen(min(geschwindigkeit_mph, ziel_geschwindigkeit))
 
     if status == "CRASH":
-        txt_c = font_titel.render("CRASH! [ENTER / R]", True, (255, 69, 0))
+        txt_c = font_titel.render("CRASH! [ENTER / R = Menü]", True, (255, 69, 0))
         fenster.blit(txt_c, txt_c.get_rect(center=(BREITE // 2, 300)))
     elif status == "SIEG":
-        txt_s = font_titel.render("88 MPH! ZEITREISE!", True, FARBE_TEXT)
+        txt_s = font_titel.render("88 MPH! ZEITREISE! [ENTER / R = Menü]", True, FARBE_TEXT)
         fenster.blit(txt_s, txt_s.get_rect(center=(BREITE // 2, 300)))
 
     pygame.display.flip()
