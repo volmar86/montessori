@@ -9,7 +9,7 @@ on:
 
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04      # fest, nicht "latest": Buildozer/python-for-android sind auf dieser Version erprobt
     strategy:
       fail-fast: false
       matrix:
@@ -25,7 +25,7 @@ jobs:
       - name: Systempakete installieren
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+          sudo apt-get install -y ffmpeg git zip unzip openjdk-17-jdk autoconf automake libtool libltdl-dev pkg-config \
             zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
 
       - name: Buildozer installieren
