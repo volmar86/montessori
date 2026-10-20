@@ -43,7 +43,7 @@ jobs:
           bash giochi_android/convert_audio.sh giochi_android/${{ matrix.game }}
 
       - name: Web-Paket bauen
-        run: python -m pygbag --build giochi_android/${{ matrix.game }}
+        run: python -m pygbag --can_close 1 --build giochi_android/${{ matrix.game }}
 
       - uses: actions/upload-artifact@v4
         with:
