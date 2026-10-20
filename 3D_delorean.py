@@ -3,7 +3,8 @@
 #
 #  Steuerung:
 #    - A / D oder Pfeiltasten zum Lenken
-#    - ENTER oder R für Neustart
+#    - Touch / Maus: waagerecht ziehen, das Auto folgt der Bewegung
+#    - ENTER, R oder Tippen für Menü / Neustart
 #    - M: Musik An/Aus
 # ============================================================
 
@@ -32,15 +33,21 @@ FARBE_TEXT = (255, 215, 0)
 
 # ---------- Spielablauf ----------
 LENK_TEMPO = 3.5                  # wie schnell man lenkt (ursprünglich 2.5)
+TOUCH_EMPFINDLICHKEIT = 4.0       # Lenken mit Finger/Maus: so viele Spuren-Einheiten pro Bildschirmbreite Ziehen (spieler_x geht von -1.8 bis 1.8)
+ENDE_SPERRE = 0.8                 # Sekunden nach Crash/Sieg, in denen ein Tippen noch ignoriert wird
 TRAVEL_DAUER = 6.5                # so viele Sekunden dauert es vom Trigger bis 88 mph (Länge von 80to88)
 
 # Schwierigkeitsgrade: (Startgeschwindigkeit mph, Beschleunigung mph pro Sekunde,
 #                       Spawn-Faktor [kleiner = mehr Autos], Trigger-mph: ab hier läuft 80to88 und die
-#                       Geschwindigkeit steigt im Takt des Sounds auf 88)
+#                       Geschwindigkeit steigt im Takt des Sounds auf 88,
+#                       Scroll-Faktor [1.0 = Straße und Autos so schnell wie ursprünglich, kleiner = langsamer = leichter])
+# Dieselben Werte wie in delorean_pygame.py. Dort ist die Beschleunigung "pro Bild" (0.08 / 0.05 / 0.03),
+# hier "pro Sekunde": dasselbe mal 60 (= 4.8 / 3.0 / 1.8).
+# Spieldauer: Anfänger ~14 s, Mittel ~21 s, Experte ~34 s.
 SCHWIERIGKEITEN = {
-    "Anfänger": (30.0, 6.0, 1.4, 65.0),
-    "Mittel":   (30.0, 8.0, 1.0, 70.0),
-    "Experte":  (30.0, 10.0, 0.7, 75.0),
+    "Anfänger": (40.0, 4.8, 1.4, 75.0, 0.6),
+    "Mittel":   (25.0, 3.0, 1.0, 70.0, 0.8),
+    "Experte":  (15.0, 1.8, 0.6, 65.0, 1.0),
 }
 
 # ---------- Hindernisse ----------
@@ -63,6 +70,9 @@ FADE_SIEG = 10.0           # ... und nach dem Sieg
 FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
 TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
 
+# Größerer Audio-Puffer (Standard: 512): die Musik gracht nicht mehr, wenn das Spiel kurz beschäftigt ist.
+# Preis: etwas mehr Verzögerung (~46 ms), bei Musik und Soundeffekten nicht zu hören.
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 try:
     pygame.mixer.init()
@@ -187,6 +197,8 @@ schwierigkeit_index = 1
 start_travel_zeit = 0.0     # Zeitpunkt, an dem 80to88 gestartet wurde
 spawn_timer = SPAWN_START_SEK   # Sekunden bis zum nächsten Auto
 letzte_spur = 0.0           # Spur des zuletzt erzeugten Autos
+ende_zeit = 0.0             # Zeitpunkt von Crash oder Sieg (damit ein Tippen nicht sofort das Menü öffnet)
+touch_richtung = 0.0        # nur für die Neigung des Autos beim Ziehen: +1 = nach links, -1 = nach rechts, klingt ab
 
 hindernisse = []   # Liste von [pos_z, spur]   spur: -1 = linker Rand, 0 = Mitte, +1 = rechter Rand
 
@@ -299,36 +311,55 @@ def zeichne_himmel():
 
 
 # ---------- Boden und Straße (jede Bildschirmzeile einzeln) ----------
+# Fast alles pro Zeile ändert sich nie (Perspektive, Breite, Dunst-Farben). Das wird nur EINMAL berechnet:
+# so bleibt pro Bild nur noch das Nötige übrig, und das Spiel (und die Musik daneben) hat mehr Luft.
+def erstelle_zeilen_tabelle():
+    zeilen = []
+    farb_paare = [(FARBE_RASEN_1, FARBE_STRASSE_1, FARBE_BORDSTEIN_1),      # "hell"  (abwechseln = True)
+                  (FARBE_RASEN_2, FARBE_STRASSE_2, FARBE_BORDSTEIN_2)]      # "dunkel"
+    for y in range(HORIZONT_Y, HOEHE):
+        perspektive = (y - HORIZONT_Y) / (HOEHE - HORIZONT_Y)
+        # Dunst: ganz hinten verschwimmen die Farben mit dem Horizont
+        dunst = max(0.0, 1.0 - (y - HORIZONT_Y) / 110)
+        farben = [(mischen(rasen, FARBE_DUNST, dunst),
+                   mischen(strasse, FARBE_DUNST, dunst * 0.8),
+                   mischen(bord, FARBE_DUNST, dunst * 0.6)) for rasen, strasse, bord in farb_paare]
+        zeilen.append((
+            y,
+            (1.0 / (perspektive + 0.001)) * 20.0,              # Versatz für die Streifen
+            strassen_breite(perspektive) / 2,                  # halbe Straßenbreite in dieser Zeile
+            perspektive * 120,                                 # wie stark die Straße beim Lenken wandert
+            max(1, perspektive * 5),                           # halbe Breite der Mittellinie
+            mischen(FARBE_MITTELLINIE, FARBE_DUNST, dunst),    # Farbe der Mittellinie
+            farben[0],
+            farben[1],
+        ))
+    return zeilen
+
+
+ZEILEN_TABELLE = erstelle_zeilen_tabelle()
+
+
 def zeichne_pseudo_3d_welt():
     zeichne_himmel()
 
-    for y in range(HORIZONT_Y, HOEHE):
-        perspektive = (y - HORIZONT_Y) / (HOEHE - HORIZONT_Y)
-        streifen_z = pos_z + (1.0 / (perspektive + 0.001)) * 20.0
-        abwechseln = int(streifen_z / 15.0) % 2 == 0
+    mitte_basis = BREITE / 2
+    for y, z_versatz, halbe_breite, lenk_faktor, halb, linie, farben_hell, farben_dunkel in ZEILEN_TABELLE:
+        abwechseln = int((pos_z + z_versatz) / 15.0) % 2 == 0
+        rasen, strasse, bord = farben_hell if abwechseln else farben_dunkel
+        mitte = mitte_basis + spieler_x * lenk_faktor
 
-        breite = strassen_breite(perspektive)
-        mitte = strassen_mitte(perspektive)
-
-        rasen = FARBE_RASEN_1 if abwechseln else FARBE_RASEN_2
-        strasse = FARBE_STRASSE_1 if abwechseln else FARBE_STRASSE_2
-        bord = FARBE_BORDSTEIN_1 if abwechseln else FARBE_BORDSTEIN_2
-
-        # Dunst: ganz hinten verschwimmen die Farben mit dem Horizont
-        dunst = max(0.0, 1.0 - (y - HORIZONT_Y) / 110)
-        rasen = mischen(rasen, FARBE_DUNST, dunst)
-        strasse = mischen(strasse, FARBE_DUNST, dunst * 0.8)
-        bord = mischen(bord, FARBE_DUNST, dunst * 0.6)
-
-        pygame.draw.line(fenster, rasen, (0, y), (BREITE, y))
-        pygame.draw.line(fenster, bord, (mitte - breite / 2 - 12, y), (mitte + breite / 2 + 12, y), 2)
-        pygame.draw.line(fenster, strasse, (mitte - breite / 2, y), (mitte + breite / 2, y))
+        # fill() mit einem 1 Pixel hohen Rechteck ist schneller als draw.line() und ergibt dasselbe Bild.
+        # (x0 nie kleiner als 0: pygame schneidet ein Rechteck, das links aus dem Bild ragt, rechts nicht richtig ab)
+        fenster.fill(rasen, (0, y, BREITE, 1))
+        pygame.draw.line(fenster, bord, (mitte - halbe_breite - 12, y), (mitte + halbe_breite + 12, y), 2)
+        x0 = max(0, int(mitte - halbe_breite))
+        fenster.fill(strasse, (x0, y, int(mitte + halbe_breite) - x0 + 1, 1))
 
         # gestrichelte Mittellinie (wird vorne breiter)
         if abwechseln:
-            halb = max(1, perspektive * 5)
-            linie = mischen(FARBE_MITTELLINIE, FARBE_DUNST, dunst)
-            pygame.draw.line(fenster, linie, (mitte - halb, y), (mitte + halb, y))
+            x0 = max(0, int(mitte - halb))
+            fenster.fill(linie, (x0, y, int(mitte + halb) - x0 + 1, 1))
 
 
 # ---------- Autos ----------
@@ -492,7 +523,7 @@ def tacho_zeichnen(mph):
 
 
 def hole_schwierigkeits_parameter():
-    """Gibt (Startgeschwindigkeit, Beschleunigung, Spawn-Faktor, Trigger-Geschwindigkeit) zurück."""
+    """Gibt (Startgeschwindigkeit, Beschleunigung, Spawn-Faktor, Trigger-Geschwindigkeit, Scroll-Faktor) zurück."""
     return SCHWIERIGKEITEN[schwierigkeitsgrade[schwierigkeit_index]]
 
 
@@ -551,7 +582,7 @@ def menue_zeichnen():
     fenster.blit(box, (140, 120))
 
     text_mit_glanz_zeichnen("⚡ DELOREAN 88 MPH ⚡", font_titel, FARBE_TEXT, 400, 160)
-    text_mit_glanz_zeichnen("[ ENTER / KLICK ] SPIEL STARTEN", font_ui, (255, 255, 255), 400, 230)
+    text_mit_glanz_zeichnen("[ ENTER / TIPPEN ] SPIEL STARTEN", font_ui, (255, 255, 255), 400, 230)
 
     diff_str = f"[ D ] SCHWIERIGKEIT: < {schwierigkeitsgrade[schwierigkeit_index]} >"
     text_mit_glanz_zeichnen(diff_str, font_ui, (0, 255, 255), 400, 290)
@@ -560,7 +591,7 @@ def menue_zeichnen():
     m_str = f"[ M ] MUSIK: < {'AN' if musik_aktiv else 'AUS'} >"
     text_mit_glanz_zeichnen(m_str, font_ui, m_farbe, 400, 350)
 
-    sub = font_sub.render("Steuerung: A/D oder Pfeiltasten zum Lenken", True, (180, 180, 180))
+    sub = font_sub.render("Steuerung: A/D, Pfeiltasten oder Finger ziehen", True, (180, 180, 180))
     fenster.blit(sub, sub.get_rect(center=(400, 430)))
 
 
@@ -587,20 +618,37 @@ while laufend:
             elif event.key == pygame.K_m:
                 musik_umschalten()
 
-        elif event.type == pygame.MOUSEBUTTONDOWN and status == "MENÜ":
-            mx, my = event.pos
-            if 200 < mx < 600 and 200 < my < 260:
-                spiel_starten()
-            elif 200 < mx < 600 and 270 < my < 330:
-                schwierigkeit_wechseln()
-            elif 200 < mx < 600 and 340 < my < 400:
-                musik_umschalten()
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            mx, my = event.pos           # bei Touch ist das die Stelle, wo der Finger tippt
+            if status == "MENÜ":
+                if 200 < mx < 600 and 200 < my < 260:
+                    spiel_starten()
+                elif 200 < mx < 600 and 270 < my < 330:
+                    schwierigkeit_wechseln()
+                elif 200 < mx < 600 and 340 < my < 400:
+                    musik_umschalten()
+            elif status in ["CRASH", "SIEG"] and time.time() - ende_zeit > ENDE_SPERRE:
+                zum_menue()              # Tippen = zurück ins Menü
+
+        # Lenken mit dem Finger: waagerecht ziehen, das Auto bewegt sich mit (relativ, der Finger muss nicht auf dem Auto sein).
+        # Achtung: spieler_x ist "falsch herum": nach rechts ziehen = spieler_x kleiner (die Straße wandert nach links).
+        elif event.type == pygame.FINGERMOTION and status == "LÄUFT":
+            spieler_x -= event.dx * TOUCH_EMPFINDLICHKEIT
+            if event.dx:
+                touch_richtung = -1.0 if event.dx > 0 else 1.0
+
+        # Dasselbe mit der Maus (Ziehen mit gedrückter linker Taste); vom Finger erzeugte Mausereignisse werden übersprungen
+        elif event.type == pygame.MOUSEMOTION and status == "LÄUFT":
+            if event.buttons[0] and not getattr(event, "touch", False):
+                spieler_x -= event.rel[0] / BREITE * TOUCH_EMPFINDLICHKEIT
+                if event.rel[0]:
+                    touch_richtung = -1.0 if event.rel[0] > 0 else 1.0
 
     if status == "MENÜ":
         pos_z += 120.0 * dt                  # die Straße rollt langsam im Hintergrund des Menüs
 
     elif status == "LÄUFT":
-        _, beschleunigung, spawn_faktor, trigger_mph = hole_schwierigkeits_parameter()
+        _, beschleunigung, spawn_faktor, trigger_mph, scroll_faktor = hole_schwierigkeits_parameter()
 
         if geschwindigkeit_mph < trigger_mph:
             geschwindigkeit_mph += beschleunigung * dt
@@ -615,9 +663,10 @@ while laufend:
             if geschwindigkeit_mph >= ziel_geschwindigkeit:
                 geschwindigkeit_mph = ziel_geschwindigkeit
                 status = "SIEG"
+                ende_zeit = time.time()
                 musik_stoppen(FADE_SIEG)
 
-        pos_z += geschwindigkeit_mph * 5.0 * dt
+        pos_z += geschwindigkeit_mph * 5.0 * dt * scroll_faktor      # scroll_faktor: Straße und Autos langsamer (leichter)
 
         # Lenkung & F-Zero Neigungseffekt
         tasten = pygame.key.get_pressed()
@@ -629,7 +678,8 @@ while laufend:
 
         spieler_x += lenk_richtung * LENK_TEMPO * dt
         spieler_x = max(-1.8, min(1.8, spieler_x))
-        kurven_neigung = -lenk_richtung * 12.0
+        touch_richtung *= 0.8                                    # die Neigung vom Ziehen klingt von selbst ab
+        kurven_neigung = -max(-1.0, min(1.0, lenk_richtung + touch_richtung)) * 12.0
 
         # Spawnen von Hindernissen (spur: wo auf der Straße, -0.75 = links ... +0.75 = rechts)
         # Nach Zeit, nicht nach Bildern; und die neue Spur liegt immer mindestens MIN_SPUR_ABSTAND neben der vorigen.
@@ -640,7 +690,9 @@ while laufend:
                 spur = random.uniform(-SPUR_MAX, SPUR_MAX)
             hindernisse.append([pos_z + SPAWN_ENTFERNUNG, spur])
             letzte_spur = spur
-            spawn_timer = random.uniform(*SPAWN_ABSTAND_SEK) * spawn_faktor
+            # Geteilt durch scroll_faktor: läuft die Straße langsamer, kommen auch die Autos seltener,
+            # sonst stünden sie enger hintereinander und das Spiel wäre nicht leichter
+            spawn_timer = random.uniform(*SPAWN_ABSTAND_SEK) * spawn_faktor / scroll_faktor
 
     # 1. Pseudo-3D Welt rendern
     zeichne_pseudo_3d_welt()
@@ -675,6 +727,7 @@ while laufend:
                 # Faire Kollision: echte Überlappung auf dem Bildschirm, etwas verkleinert
                 if status == "LÄUFT" and spieler_rect.inflate(-12, -12).colliderect(h_rect.inflate(-6, -4)):
                     status = "CRASH"
+                    ende_zeit = time.time()
                     if sound_travel:
                         sound_travel.stop()      # nach einem Crash gibt es keine Zeitreise
                     musik_stoppen(FADE_CRASH)
@@ -699,10 +752,10 @@ while laufend:
         tacho_zeichnen(min(geschwindigkeit_mph, ziel_geschwindigkeit))
 
     if status == "CRASH":
-        txt_c = font_titel.render("CRASH! [ENTER / R = Menü]", True, (255, 69, 0))
+        txt_c = font_titel.render("CRASH! [ENTER / TIPPEN]", True, (255, 69, 0))
         fenster.blit(txt_c, txt_c.get_rect(center=(BREITE // 2, 300)))
     elif status == "SIEG":
-        txt_s = font_titel.render("88 MPH! ZEITREISE! [ENTER / R = Menü]", True, FARBE_TEXT)
+        txt_s = font_titel.render("88 MPH! ZEITREISE! [ENTER / TIPPEN]", True, FARBE_TEXT)
         fenster.blit(txt_s, txt_s.get_rect(center=(BREITE // 2, 300)))
 
     pygame.display.flip()
