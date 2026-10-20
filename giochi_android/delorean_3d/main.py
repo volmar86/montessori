@@ -71,6 +71,9 @@ FADE_SIEG = 10.0           # ... und nach dem Sieg
 FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
 TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
 
+# Größerer Audio-Puffer (Standard: 512): die Musik gracht nicht mehr, wenn das Spiel kurz beschäftigt ist.
+# Preis: etwas mehr Verzögerung (~46 ms), bei Musik und Soundeffekten nicht zu hören.
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 try:
     pygame.mixer.init()
@@ -324,36 +327,55 @@ def zeichne_himmel():
 
 
 # ---------- Boden und Straße (jede Bildschirmzeile einzeln) ----------
+# Fast alles pro Zeile ändert sich nie (Perspektive, Breite, Dunst-Farben). Das wird nur EINMAL berechnet:
+# so bleibt pro Bild nur noch das Nötige übrig, und das Spiel (und die Musik daneben) hat mehr Luft.
+def erstelle_zeilen_tabelle():
+    zeilen = []
+    farb_paare = [(FARBE_RASEN_1, FARBE_STRASSE_1, FARBE_BORDSTEIN_1),      # "hell"  (abwechseln = True)
+                  (FARBE_RASEN_2, FARBE_STRASSE_2, FARBE_BORDSTEIN_2)]      # "dunkel"
+    for y in range(HORIZONT_Y, HOEHE):
+        perspektive = (y - HORIZONT_Y) / (HOEHE - HORIZONT_Y)
+        # Dunst: ganz hinten verschwimmen die Farben mit dem Horizont
+        dunst = max(0.0, 1.0 - (y - HORIZONT_Y) / 110)
+        farben = [(mischen(rasen, FARBE_DUNST, dunst),
+                   mischen(strasse, FARBE_DUNST, dunst * 0.8),
+                   mischen(bord, FARBE_DUNST, dunst * 0.6)) for rasen, strasse, bord in farb_paare]
+        zeilen.append((
+            y,
+            (1.0 / (perspektive + 0.001)) * 20.0,              # Versatz für die Streifen
+            strassen_breite(perspektive) / 2,                  # halbe Straßenbreite in dieser Zeile
+            perspektive * 120,                                 # wie stark die Straße beim Lenken wandert
+            max(1, perspektive * 5),                           # halbe Breite der Mittellinie
+            mischen(FARBE_MITTELLINIE, FARBE_DUNST, dunst),    # Farbe der Mittellinie
+            farben[0],
+            farben[1],
+        ))
+    return zeilen
+
+
+ZEILEN_TABELLE = erstelle_zeilen_tabelle()
+
+
 def zeichne_pseudo_3d_welt():
     zeichne_himmel()
 
-    for y in range(HORIZONT_Y, HOEHE):
-        perspektive = (y - HORIZONT_Y) / (HOEHE - HORIZONT_Y)
-        streifen_z = pos_z + (1.0 / (perspektive + 0.001)) * 20.0
-        abwechseln = int(streifen_z / 15.0) % 2 == 0
+    mitte_basis = BREITE / 2
+    for y, z_versatz, halbe_breite, lenk_faktor, halb, linie, farben_hell, farben_dunkel in ZEILEN_TABELLE:
+        abwechseln = int((pos_z + z_versatz) / 15.0) % 2 == 0
+        rasen, strasse, bord = farben_hell if abwechseln else farben_dunkel
+        mitte = mitte_basis + spieler_x * lenk_faktor
 
-        breite = strassen_breite(perspektive)
-        mitte = strassen_mitte(perspektive)
-
-        rasen = FARBE_RASEN_1 if abwechseln else FARBE_RASEN_2
-        strasse = FARBE_STRASSE_1 if abwechseln else FARBE_STRASSE_2
-        bord = FARBE_BORDSTEIN_1 if abwechseln else FARBE_BORDSTEIN_2
-
-        # Dunst: ganz hinten verschwimmen die Farben mit dem Horizont
-        dunst = max(0.0, 1.0 - (y - HORIZONT_Y) / 110)
-        rasen = mischen(rasen, FARBE_DUNST, dunst)
-        strasse = mischen(strasse, FARBE_DUNST, dunst * 0.8)
-        bord = mischen(bord, FARBE_DUNST, dunst * 0.6)
-
-        pygame.draw.line(fenster, rasen, (0, y), (BREITE, y))
-        pygame.draw.line(fenster, bord, (mitte - breite / 2 - 12, y), (mitte + breite / 2 + 12, y), 2)
-        pygame.draw.line(fenster, strasse, (mitte - breite / 2, y), (mitte + breite / 2, y))
+        # fill() mit einem 1 Pixel hohen Rechteck ist schneller als draw.line() und ergibt dasselbe Bild.
+        # (x0 nie kleiner als 0: pygame schneidet ein Rechteck, das links aus dem Bild ragt, rechts nicht richtig ab)
+        fenster.fill(rasen, (0, y, BREITE, 1))
+        pygame.draw.line(fenster, bord, (mitte - halbe_breite - 12, y), (mitte + halbe_breite + 12, y), 2)
+        x0 = max(0, int(mitte - halbe_breite))
+        fenster.fill(strasse, (x0, y, int(mitte + halbe_breite) - x0 + 1, 1))
 
         # gestrichelte Mittellinie (wird vorne breiter)
         if abwechseln:
-            halb = max(1, perspektive * 5)
-            linie = mischen(FARBE_MITTELLINIE, FARBE_DUNST, dunst)
-            pygame.draw.line(fenster, linie, (mitte - halb, y), (mitte + halb, y))
+            x0 = max(0, int(mitte - halb))
+            fenster.fill(linie, (x0, y, int(mitte + halb) - x0 + 1, 1))
 
 
 # ---------- Autos ----------
