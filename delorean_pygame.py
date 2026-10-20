@@ -8,7 +8,8 @@
 #  
 #  Spiel-Steuerung:
 #    - A / D oder Pfeiltasten zum Lenken
-#    - R oder ENTER nach Spielende für Neustart / Menü
+#    - Touch / Maus: waagerecht ziehen, das Auto folgt der Bewegung
+#    - R oder ENTER (oder Tippen) nach Spielende für Neustart / Menü
 # ============================================================
 
 import pygame
@@ -49,6 +50,12 @@ FADE_SIEG = 10.0           # ... und nach dem Sieg
 FADE_TASTE_M = 1.0         # ... und wenn man mit M die Musik ausschaltet
 TRAVEL_ENDE_MS = 400       # die letzten Millisekunden von 80to88 abschneiden (gegen das Knacksen am Ende)
 
+TOUCH_EMPFINDLICHKEIT = 1.3   # Lenken mit Finger/Maus: 1.0 = das Auto bewegt sich so weit wie der Finger, höher = empfindlicher
+ENDE_SPERRE = 0.8             # Sekunden nach Crash/Sieg, in denen ein Tippen noch ignoriert wird
+
+# Größerer Audio-Puffer (Standard: 512): die Musik gracht nicht mehr, wenn das Spiel kurz beschäftigt ist.
+# Preis: etwas mehr Verzögerung (~46 ms), bei Musik und Soundeffekten nicht zu hören.
+pygame.mixer.pre_init(44100, -16, 2, 2048)
 pygame.init()
 pygame.mixer.init()
 
@@ -350,6 +357,7 @@ hindernis_timer = 0
 sfx_travel_gestartet = False
 start_travel_zeit = 0.0
 sieg_zeit = 0.0
+ende_zeit = 0.0            # Zeitpunkt von Crash oder Sieg (damit ein Tippen nicht sofort das Menü öffnet)
 
 # Schriftarten
 font_titel = pygame.font.SysFont("Courier", 36, bold=True)
@@ -387,6 +395,16 @@ def spiel_starten():
         sound_tc.stop()
 
 
+def zum_menue():
+    """Zurück ins Menü (nach Crash oder Sieg)."""
+    global status
+    status = "MENÜ"
+    if sound_travel:
+        sound_travel.stop()
+    if musik_aktiv:
+        musik_starten()          # Time-Circuits-Sound nur beim allerersten Start, nicht bei jedem Menü
+
+
 def text_mit_glanz_zeichnen(text, font, farbe, x, y):
     """Zeichnet einen retro Neon-Text mit Schatten-Effekt."""
     schatten = font.render(text, True, (0, 0, 0))
@@ -418,12 +436,8 @@ while laufend:
                 if status == "MENÜ":
                     spiel_starten()
                 elif status in ["CRASH", "SIEG"]:
-                    status = "MENÜ"
-                    if sound_travel:
-                        sound_travel.stop()
-                    if musik_aktiv:
-                        musik_starten()          # Time-Circuits-Sound nur beim allerersten Start, nicht bei jedem Menü
-                        
+                    zum_menue()
+
             elif event.key == pygame.K_d:
                 if status == "MENÜ":
                     schwierigkeit_index = (schwierigkeit_index + 1) % len(schwierigkeitsgrade)
@@ -436,7 +450,7 @@ while laufend:
                     musik_stoppen(FADE_TASTE_M)
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            mx, my = pygame.mouse.get_pos()
+            mx, my = event.pos           # bei Touch ist das die Stelle, wo der Finger tippt
             if status == "MENÜ":
                 if 200 < mx < 600 and 200 < my < 260:
                     spiel_starten()
@@ -448,6 +462,17 @@ while laufend:
                         musik_starten()
                     else:
                         musik_stoppen(FADE_TASTE_M)
+            elif status in ["CRASH", "SIEG"] and time.time() - ende_zeit > ENDE_SPERRE:
+                zum_menue()              # Tippen = zurück ins Menü
+
+        # Lenken mit dem Finger: waagerecht ziehen, das Auto bewegt sich mit (relativ, der Finger muss nicht auf dem Auto sein)
+        elif event.type == pygame.FINGERMOTION and status == "LÄUFT":
+            spieler_x += event.dx * BREITE * TOUCH_EMPFINDLICHKEIT
+
+        # Dasselbe mit der Maus (Ziehen mit gedrückter linker Taste); vom Finger erzeugte Mausereignisse werden übersprungen
+        elif event.type == pygame.MOUSEMOTION and status == "LÄUFT":
+            if event.buttons[0] and not getattr(event, "touch", False):
+                spieler_x += event.rel[0] * TOUCH_EMPFINDLICHKEIT
 
     # 2. GAME LOGIC
     if status == "LÄUFT":
@@ -504,6 +529,7 @@ while laufend:
             
             if spieler_rect.colliderect(h_rect) and status == "LÄUFT":
                 status = "CRASH"
+                ende_zeit = time.time()
                 if sound_travel:
                     sound_travel.stop()          # Zeitreise-Geräusch sofort aus: nach einem Crash gibt es keine Zeitreise
                 musik_stoppen(FADE_CRASH)
@@ -515,6 +541,7 @@ while laufend:
         if geschwindigkeit_mph >= ziel_geschwindigkeit and status == "LÄUFT":   # nicht, wenn im selben Bild gecrasht
             status = "SIEG"
             sieg_zeit = time.time()
+            ende_zeit = sieg_zeit
             musik_stoppen(FADE_SIEG)
 
             # Feuer-Partikel erzeugen
@@ -572,7 +599,7 @@ while laufend:
         fenster.blit(box_surf, (140, 120))
         
         text_mit_glanz_zeichnen("⚡ DELOREAN 88 MPH ⚡", font_titel, FARBE_GOLD, 400, 160)
-        text_mit_glanz_zeichnen("[ ENTER / KLICK ] SPIEL STARTEN", font_ui, FARBE_WEISS, 400, 230)
+        text_mit_glanz_zeichnen("[ ENTER / TIPPEN ] SPIEL STARTEN", font_ui, FARBE_WEISS, 400, 230)
         
         diff_str = f"[ D ] SCHWIERIGKEIT: < {schwierigkeitsgrade[schwierigkeit_index]} >"
         text_mit_glanz_zeichnen(diff_str, font_ui, FARBE_NEON_BLAU, 400, 290)
@@ -581,18 +608,18 @@ while laufend:
         m_str = f"[ M ] MUSIK: < {'AN' if musik_aktiv else 'AUS'} >"
         text_mit_glanz_zeichnen(m_str, font_ui, m_color, 400, 350)
         
-        txt_sub = font_sub.render("Steuerung: A/D oder Pfeiltasten zum Lenken", True, (180, 180, 180))
+        txt_sub = font_sub.render("Steuerung: A/D, Pfeiltasten oder Finger ziehen", True, (180, 180, 180))
         fenster.blit(txt_sub, txt_sub.get_rect(center=(400, 430)))
         
     # Crash Screen
     elif status == "CRASH":
         text_mit_glanz_zeichnen("CRASH! 💥", font_titel, FARBE_FEUER_ORANGE, 400, 250)
-        text_mit_glanz_zeichnen("Drücke 'R' oder ENTER für Menü", font_ui, FARBE_WEISS, 400, 320)
+        text_mit_glanz_zeichnen("Drücke 'R', ENTER oder tippe für Menü", font_ui, FARBE_WEISS, 400, 320)
         
     # Sieg Screen
     elif status == "SIEG":
         text_mit_glanz_zeichnen("88 MPH! ZEITREISE IN DIE 50er! ⚡", font_titel, FARBE_GOLD, 400, 240)
-        text_mit_glanz_zeichnen("Drücke 'R' oder ENTER für Menü", font_ui, FARBE_WEISS, 400, 310)
+        text_mit_glanz_zeichnen("Drücke 'R', ENTER oder tippe für Menü", font_ui, FARBE_WEISS, 400, 310)
 
     pygame.display.flip()
 
