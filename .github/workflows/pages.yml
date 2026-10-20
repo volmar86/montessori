@@ -1,0 +1,85 @@
+name: Web-Version (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "giochi_android/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        game: [delorean_pygame, delorean_3d]    # weitere Spiele hier eintragen
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: ffmpeg und Pygbag installieren
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          pip install pygbag
+
+      - name: Audio in .ogg umwandeln
+        run: |
+          sed -i 's/\r$//' giochi_android/convert_audio.sh      # falls das Skript mit Windows-Zeilenenden hochgeladen wurde
+          bash giochi_android/convert_audio.sh giochi_android/${{ matrix.game }}
+
+      - name: Web-Paket bauen
+        run: python -m pygbag --build giochi_android/${{ matrix.game }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-${{ matrix.game }}
+          path: giochi_android/${{ matrix.game }}/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: web-*
+          path: site_roh
+
+      - name: Seite zusammenbauen (ein Ordner pro Spiel + Startseite mit Liste)
+        run: |
+          mkdir site
+          {
+            echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            echo '<title>Giochi</title><body style="font-family:sans-serif;background:#111;color:#eee;padding:16px"><h1>Giochi</h1><ul>'
+          } > site/index.html
+          for d in site_roh/web-*; do
+            spiel="${d#site_roh/web-}"
+            mv "$d" "site/$spiel"
+            echo "<li style=\"margin:12px 0;font-size:1.3em\"><a style=\"color:#7cf\" href=\"$spiel/\">$spiel</a></li>" >> site/index.html
+          done
+          echo '</ul></body>' >> site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
