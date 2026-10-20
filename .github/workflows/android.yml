@@ -29,7 +29,7 @@ jobs:
             zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
 
       - name: Buildozer installieren
-        run: pip install buildozer "cython<3" setuptools
+        run: pip install buildozer "cython<3" setuptools "sh<2"
 
       - name: Audio in .ogg umwandeln
         run: |
