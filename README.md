@@ -1,2 +1,2 @@
 # montessori
-Github where I can store the code devleopped for the class
+Github where I can store the code developed for the class
