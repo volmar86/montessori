@@ -66,3 +66,6 @@ pensize(3)
 goto(0, 0)
 setheading(0)
 pendown()
+
+if __name__ == "__main__":
+    done()
