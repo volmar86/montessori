@@ -12,3 +12,10 @@ pensize(3)
 ecken = 4          # <-- wie viele Ecken
 
 color("crimson")
+
+for i in range(ecken):
+  forward(100)
+  left(360 / ecken)
+  
+hideturtle() # Pfeil ausblenden
+done()
